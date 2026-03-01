@@ -1,0 +1,37 @@
+{
+    "private": true,
+    "name": "devvit-svelte-template",
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "postinstall": "bun run build",
+        "build": "vite build",
+        "deploy": "bun run build && devvit upload",
+        "dev": "concurrently -k -p \"[{name}]\" -n \"BUILD,DEVVIT\" -c \"blue,magenta\" \"vite build --watch\" \"dotenv -e .env -- devvit playtest\"",
+        "dev:devvit": "dotenv -e .env -- devvit playtest",
+        "login": "devvit login",
+        "check": "svelte-check --tsconfig ./src/client/tsconfig.json",
+        "launch": "bun run build && bun run deploy && devvit publish",
+        "type-check": "tsc --build",
+        "test": "bun test"
+    },
+    "dependencies": {
+        "@devvit/web": "0.12.13",
+        "@hono/node-server": "^1.19.9",
+        "@tailwindcss/vite": "^4.2.1",
+        "devvit": "0.12.13",
+        "hono": "^4.12.3",
+        "tailwindcss": "^4.2.1"
+    },
+    "devDependencies": {
+        "@devvit/start": "0.12.13",
+        "@sveltejs/vite-plugin-svelte": "^7.0.0",
+        "concurrently": "^9.2.1",
+        "dotenv-cli": "^11.0.0",
+        "svelte": "^5.53.5",
+        "svelte-check": "^4.4.4",
+        "typescript": "^5.9.3",
+        "vite": "8.0.0-beta.16"
+    },
+    "packageManager": "bun@1.1.34"
+}

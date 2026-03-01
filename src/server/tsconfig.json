@@ -1,0 +1,28 @@
+{
+  "extends": "../../tools/tsconfig-base.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2023"
+    ],
+    "types": [
+      "node"
+    ],
+    "rootDir": ".",
+    "outDir": "../../dist/types/server",
+    "tsBuildInfoFile": "../../dist/types/server/tsconfig.tsbuildinfo",
+    "strictNullChecks": true
+  },
+  "include": [
+    "**/*",
+    "**/*.json",
+    "../../package.json"
+  ],
+  "exclude": [
+    "**/*.test.ts"
+  ],
+  "references": [
+    {
+      "path": "../shared"
+    }
+  ]
+}
