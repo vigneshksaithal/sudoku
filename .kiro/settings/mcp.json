@@ -4,7 +4,11 @@
       "type": "remote",
       "url": "https://mcp.svelte.dev/mcp",
       "autoApprove": [
-        "list-sections"
+        "list-sections",
+        "get-documentation",
+        "svelte-autofixer",
+        "svelte-autofixer",
+        "svelte-autofixer"
       ]
     },
     "devvit": {

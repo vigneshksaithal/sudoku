@@ -30,7 +30,7 @@
     "onAppInstall": "/internal/on-app-install"
   },
   "dev": {
-    "subreddit": "cat543"
+    "subreddit": "playsudoku"
   },
   "scripts": {
     "dev": "vite build --watch",

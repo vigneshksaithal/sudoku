@@ -1,7 +1,8 @@
 import {
   context,
   createServer,
-  getServerPort
+  getServerPort,
+  redis
 } from '@devvit/web/server'
 import { serve } from '@hono/node-server'
 import type { Context } from 'hono'
@@ -10,13 +11,15 @@ import { Hono } from 'hono'
 import { createPost } from './post'
 
 const HTTP_STATUS_BAD_REQUEST = 400
+const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 
-const app = new Hono()
+export const app = new Hono()
 
-const createPostHandler = async (c: Context) => {
+// --- Post creation ---
+
+const createPostHandler = async (c: Context): Promise<Response> => {
   try {
     const post = await createPost()
-
     return c.json({
       navigateTo: `https://reddit.com/r/${context.subredditName}/comments/${post.id}`
     })
@@ -25,10 +28,7 @@ const createPostHandler = async (c: Context) => {
       ? error.message
       : 'Failed to create post'
     return c.json(
-      {
-        status: 'error',
-        message: errorMessage
-      },
+      { status: 'error', message: errorMessage },
       HTTP_STATUS_BAD_REQUEST
     )
   }
@@ -37,5 +37,61 @@ const createPostHandler = async (c: Context) => {
 app.post('/internal/on-app-install', createPostHandler)
 app.post('/internal/menu/post-create', createPostHandler)
 
-// Start the Devvit-wrapped server so context (reddit, redis, etc.) is available
-serve({ fetch: app.fetch, port: getServerPort(), createServer })
+// --- GET /api/puzzle ---
+
+app.get('/api/puzzle', async (c) => {
+  const postId = context.postId
+  if (!postId) {
+    return c.json({ status: 'error', message: 'Missing postId' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const data = await redis.hGetAll(`puzzle:${postId}`)
+  const easy = data['easy:puzzle']
+  const medium = data['medium:puzzle']
+  const hard = data['hard:puzzle']
+
+  if (!easy || !medium || !hard) {
+    return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  return c.json({ status: 'success', data: { easy, medium, hard } })
+})
+
+// --- POST /api/validate ---
+
+app.post('/api/validate', async (c) => {
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
+  if (!body) {
+    return c.json({ status: 'error', message: 'Invalid JSON' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const { board, difficulty } = body
+  if (typeof board !== 'string' || typeof difficulty !== 'string') {
+    return c.json({ status: 'error', message: 'Missing board or difficulty' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  if (!VALID_DIFFICULTIES.includes(difficulty as typeof VALID_DIFFICULTIES[number])) {
+    return c.json({ status: 'error', message: 'Invalid difficulty' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  if (board.length !== 81 || !/^[0-9]{81}$/.test(board)) {
+    return c.json({ status: 'error', message: 'Invalid board' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const postId = context.postId
+  if (!postId) {
+    return c.json({ status: 'error', message: 'Missing postId' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const solution = await redis.hGet(`puzzle:${postId}`, `${difficulty}:solution`)
+  if (!solution) {
+    return c.json({ status: 'error', message: 'Solution not found' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  return c.json({ valid: board === solution })
+})
+
+// Only start the server when not in test mode
+if (process.env['NODE_ENV'] !== 'test') {
+  serve({ fetch: app.fetch, port: getServerPort(), createServer })
+}
