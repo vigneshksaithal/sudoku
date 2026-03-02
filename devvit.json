@@ -31,5 +31,9 @@
   },
   "dev": {
     "subreddit": "cat543"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
   }
 }
