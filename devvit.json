@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "delete23423",
+  "name": "sudokugame",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -19,7 +19,7 @@
     "items": [
       {
         "label": "Create a new post",
-        "description": "Svelte",
+        "description": "Sudoku",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
