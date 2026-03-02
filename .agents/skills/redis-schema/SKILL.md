@@ -70,10 +70,12 @@ if (solved !== undefined) {
 }
 ```
 
-## Schema design checklist
+## Checklist before finishing
+- [ ] Tests written FIRST in `__tests__/` using `bun:test` and devvit-mocks for Redis operations
 - [ ] Keys follow `{entity}:{id}:{field}` pattern
 - [ ] All Redis values are strings — parse numbers with `parseInt`/`parseFloat`
 - [ ] Null/undefined handled after every `get` / `hGet`
 - [ ] Batch reads used where multiple keys needed
 - [ ] Expiration set on ephemeral data (sessions, temp state)
 - [ ] Total storage estimate documented if significant
+- [ ] `bun run test` passes with zero failures

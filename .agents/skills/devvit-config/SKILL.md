@@ -100,8 +100,10 @@ Triggers fire on platform events. Each maps to an `/internal/*` endpoint.
 | `"tall"` | ~512px | Full games, complex UI |
 
 ## Checklist before finishing
+- [ ] Tests written FIRST for corresponding server handlers in `src/server/__tests__/`
 - [ ] Menu item `endpoint` matches a Hono route in `src/server/index.ts`
 - [ ] Trigger endpoint matches a Hono route
 - [ ] `location` and `forUserType` are appropriate for the action
 - [ ] Endpoint path follows `/internal/menu/*` or `/internal/on-*` convention
 - [ ] Corresponding server handler exists and handles errors
+- [ ] `bun run test` passes with zero failures

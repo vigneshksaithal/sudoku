@@ -181,6 +181,7 @@ if (owner !== userId) {
 - No native Node modules (sharp, ffmpeg) — use external services
 
 ## Checklist before finishing
+- [ ] Tests written FIRST in `src/server/__tests__/` using `bun:test` and devvit-mocks
 - [ ] Handler is an arrow function with explicit return type
 - [ ] try/catch with `instanceof Error` narrowing
 - [ ] HTTP status uses named constant, not magic number
@@ -191,3 +192,4 @@ if (owner !== userId) {
 - [ ] No raw user input in Redis keys
 - [ ] Identity from `context.userId`, never from request body
 - [ ] Response contains only client-necessary fields
+- [ ] `bun run test` passes with zero failures

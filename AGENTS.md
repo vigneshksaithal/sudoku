@@ -9,17 +9,22 @@
 | `bun run build` | `vite build` | Production build to dist/ |
 | `bun run type-check` | `tsc --build` | TypeScript composite build check (all 3 projects) |
 | `bun run check` | `svelte-check` | Svelte-specific type checking (client only) |
+| `bun run test` | `vitest run` | Run all tests (Vitest + @devvit/test) |
+| `bun run test:watch` | `vitest` | Watch mode for development |
 | `bun run deploy` | `build && devvit upload` | Build and upload to Devvit |
 | `bun run launch` | `build && deploy && devvit publish` | Full release pipeline |
 
 **Before committing:**
 ```bash
-bun run type-check
+bun run test && bun run type-check
 ```
 
-> **Not yet configured:** No test runner (vitest/jest), linter (eslint/biome), or formatter
-> (prettier/biome) is installed. `bun run test` is broken (circular self-reference). Do not
-> add these tools without explicit instruction.
+> **Testing:** Vitest + `@devvit/test` provides in-memory Redis, Reddit API mocks, and per-test
+> isolation. Tests live in `__tests__/` directories colocated with source.
+> TDD workflow: write failing test → minimal implementation → refactor → `bun run test`.
+
+> **Not yet configured:** No linter (eslint/biome) or formatter (prettier/biome) is installed.
+> Do not add these tools without explicit instruction.
 
 ---
 
@@ -35,10 +40,11 @@ src/
 │   ├── main.ts       # Entry: mount(App, { target })
 │   └── index.html    # Entry HTML
 ├── server/           # Hono.js routes (serverless)
+│   ├── __tests__/    # Server tests (Vitest + @devvit/test)
 │   ├── index.ts      # Hono app, route handlers, createServer()
 │   └── post.ts       # Post creation logic
-└── shared/           # Shared TypeScript (project references, no source files yet)
-    └── tsconfig.json
+├── shared/           # Shared TypeScript (project references, no source files yet)
+│   └── tsconfig.json
 ```
 
 Data flow: `User Action → Svelte → fetch('/api/...') → Hono → Redis/Reddit API → Response → UI`
@@ -78,6 +84,41 @@ These apply to ALL code — server, client, shared. Every skill inherits these r
 - Fail fast with descriptive errors — never silently swallow failures
 - Handle all edge cases: null, undefined, empty arrays, missing keys
 - `as const` for literal objects/arrays to preserve type narrowness
+
+---
+
+## Test-Driven Development (TDD)
+
+This project follows strict TDD. Every AI agent and developer must follow these rules.
+
+### The rule: test first, always
+
+1. Before writing any implementation code, check if a corresponding `__tests__/*.test.ts` file exists
+2. If not, write the failing test first (Red)
+3. Then write the minimal code to make it pass (Green)
+4. Then refactor while keeping tests green (Refactor)
+5. Run `bun run test` before committing — zero failures required
+
+### Test stack
+
+- **Vitest** as the test runner
+- **`@devvit/test`** provides per-test isolated Devvit backend (in-memory Redis, Reddit API mocks, Scheduler, Realtime)
+- No manual mock setup needed — `createDevvitTest()` handles everything
+- See `.agents/skills/tdd/SKILL.md` for full patterns and code examples
+
+### What must be tested
+
+| Layer | Must test | Can skip tests |
+|-------|----------|---------------|
+| `src/server/**/*.ts` | All routes, handlers, business logic | — |
+| `src/server/lib/**/*.ts` | All helpers, validators, transforms | — |
+| `src/shared/**/*.ts` | All pure functions | — |
+| `src/client/**/*.ts` | Extracted logic files | `.svelte` files (use autofixer instead) |
+| Config / docs / skills | — | Always skip |
+
+### After every implementation task
+
+Run `bun run test` and confirm zero failures before moving to the next task.
 
 ---
 
@@ -168,8 +209,3 @@ Use for any Devvit platform question, Redis patterns, Reddit API, config, or con
 
 Prefer `devvit_search` over pasting large doc files into context. It's hybrid search so natural language queries work well (e.g. `"redis sorted set leaderboard"`, `"custom post height options"`).
 
----
-
-## Supplemental Docs
-
-All documentation is consolidated in `docs/DEVVIT.md`.

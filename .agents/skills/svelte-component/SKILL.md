@@ -130,6 +130,7 @@ description: Create a Svelte 5 component with optional data fetching. Use when a
 ```
 
 ## Checklist before finishing
+- [ ] Tests written FIRST for any logic extracted into `.ts` helper files
 - [ ] Uses `$state()`, `$derived()`, `$effect()` — no Svelte 4 syntax
 - [ ] No `<style>` blocks — Tailwind only
 - [ ] No `localStorage` / `sessionStorage`
@@ -140,3 +141,4 @@ description: Create a Svelte 5 component with optional data fetching. Use when a
 - [ ] `finally` block resets loading/submitting state
 - [ ] Error narrowing with `instanceof Error`
 - [ ] Response `status` field checked before accessing `data`
+- [ ] `bun run test` passes with zero failures

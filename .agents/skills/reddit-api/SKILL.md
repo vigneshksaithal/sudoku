@@ -95,7 +95,9 @@ app.post('/internal/menu/create-game', async (c) => {
 - Error handling follows the `api-route` skill pattern (try/catch, `instanceof Error`)
 
 ## Checklist before finishing
+- [ ] Tests written FIRST in `src/server/__tests__/` using `bun:test` and devvit-mocks
 - [ ] All Reddit API calls are in server code (`src/server/`)
 - [ ] `context.userId` and `context.postId` guarded before use
 - [ ] Response uses standard shape from `api-route` skill
 - [ ] Menu item handlers return `{ navigateTo: url }` when redirecting
+- [ ] `bun run test` passes with zero failures

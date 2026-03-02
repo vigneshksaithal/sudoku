@@ -13,7 +13,8 @@
         "check": "svelte-check --tsconfig ./src/client/tsconfig.json",
         "launch": "bun run build && bun run deploy && devvit publish",
         "type-check": "tsc --build",
-        "test": "bun test"
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "dependencies": {
         "@devvit/web": "0.12.13",
@@ -25,13 +26,15 @@
     },
     "devDependencies": {
         "@devvit/start": "0.12.13",
+        "@devvit/test": "^0.12.13",
         "@sveltejs/vite-plugin-svelte": "^7.0.0",
         "concurrently": "^9.2.1",
         "dotenv-cli": "^11.0.0",
         "svelte": "^5.53.5",
         "svelte-check": "^4.4.4",
         "typescript": "^5.9.3",
-        "vite": "8.0.0-beta.16"
+        "vite": "8.0.0-beta.16",
+        "vitest": "^4.0.18"
     },
     "packageManager": "bun@1.1.34"
 }
