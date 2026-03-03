@@ -60,7 +60,7 @@ Implementation follows strict TDD: for each module, write failing tests first, t
     - Run `bun run test` — all 1.5 tests must pass (Green phase)
     - _Requirements: 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 1.7 Write property tests for the generation engine (Properties 1–4)
+  - [x] 1.7 Write property tests for the generation engine (Properties 1–4)
     - Create `src/server/lib/__tests__/sudoku.property.test.ts`
     - Use `fast-check` with minimum 100 iterations per property
     - **Property 1: Generated solutions are valid Sudoku boards** — every row, column, and 3×3 box contains digits 1–9 exactly once
@@ -121,7 +121,7 @@ Implementation follows strict TDD: for each module, write failing tests first, t
     - Run `bun run test` — POST /api/validate tests must pass
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-  - [ ] 4.4 Write property test for validation correctness (Property 5)
+  - [x] 4.4 Write property test for validation correctness (Property 5)
     - Create `src/server/__tests__/api.property.test.ts`
     - Use `fast-check` to generate random 81-char solution strings
     - **Property 5: Validation returns true if and only if board matches solution**
@@ -153,7 +153,7 @@ Implementation follows strict TDD: for each module, write failing tests first, t
     - Run `bun run test` — all 6.2 tests must pass (Green phase)
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 11.1, 13.1, 13.2, 13.3_
 
-  - [ ] 6.4 Write property tests for client utilities (Properties 6–9)
+  - [x] 6.4 Write property tests for client utilities (Properties 6–9)
     - Create `src/client/lib/__tests__/sudoku-utils.property.test.ts`
     - Use `fast-check` with minimum 100 iterations per property
     - **Property 6: Board string serialization round-trip** — grid → string → grid produces equivalent board
