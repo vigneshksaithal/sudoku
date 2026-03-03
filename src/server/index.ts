@@ -11,7 +11,12 @@ import { Hono } from 'hono'
 import { createPost } from './post'
 
 const HTTP_STATUS_BAD_REQUEST = 400
-const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
+const VALID_DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
+
+type ValidDifficulty = (typeof VALID_DIFFICULTIES)[number]
+
+const isValidDifficulty = (d: unknown): d is ValidDifficulty =>
+  typeof d === 'string' && (VALID_DIFFICULTIES as readonly string[]).includes(d)
 
 export const app = new Hono()
 
@@ -46,15 +51,16 @@ app.get('/api/puzzle', async (c) => {
   }
 
   const data = await redis.hGetAll(`puzzle:${postId}`)
-  const easy = data['easy:puzzle']
-  const medium = data['medium:puzzle']
-  const hard = data['hard:puzzle']
-
-  if (!easy || !medium || !hard) {
-    return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
+  const puzzles: Record<string, string> = {}
+  for (const d of VALID_DIFFICULTIES) {
+    const puzzle = data[`${d}:puzzle`]
+    if (!puzzle) {
+      return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
+    }
+    puzzles[d] = puzzle
   }
 
-  return c.json({ status: 'success', data: { easy, medium, hard } })
+  return c.json({ status: 'success', data: puzzles })
 })
 
 // --- POST /api/validate ---
@@ -70,7 +76,7 @@ app.post('/api/validate', async (c) => {
     return c.json({ status: 'error', message: 'Missing board or difficulty' }, HTTP_STATUS_BAD_REQUEST)
   }
 
-  if (!VALID_DIFFICULTIES.includes(difficulty as typeof VALID_DIFFICULTIES[number])) {
+  if (!isValidDifficulty(difficulty)) {
     return c.json({ status: 'error', message: 'Invalid difficulty' }, HTTP_STATUS_BAD_REQUEST)
   }
 

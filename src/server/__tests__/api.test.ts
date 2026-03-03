@@ -11,56 +11,49 @@ import { app } from '../index'
 
 const test = createDevvitTest()
 
+const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
+
+const seedPuzzles = async (postId: string): Promise<void> => {
+    const fields: Record<string, string> = { createdAt: '1234567890' }
+    DIFFICULTIES.forEach((d, i) => {
+        fields[`${d}:puzzle`] = String(i + 1).repeat(81)
+        fields[`${d}:solution`] = String(i + 5).repeat(81)
+    })
+    await redis.hSet(`puzzle:${postId}`, fields)
+}
+
 // --- GET /api/puzzle ---
 
-test('GET /api/puzzle returns three puzzle strings', async () => {
+test('GET /api/puzzle returns four puzzle strings', async () => {
     const postId = context.postId!
-    await redis.hSet(`puzzle:${postId}`, {
-        'easy:puzzle': '5'.repeat(81),
-        'easy:solution': '1'.repeat(81),
-        'medium:puzzle': '6'.repeat(81),
-        'medium:solution': '2'.repeat(81),
-        'hard:puzzle': '7'.repeat(81),
-        'hard:solution': '3'.repeat(81),
-        createdAt: '1234567890',
-    })
+    await seedPuzzles(postId)
 
     const res = await app.request('/api/puzzle')
     const json = await res.json()
 
     expect(res.status).toBe(200)
-    expect(json).toEqual({
-        status: 'success',
-        data: {
-            easy: '5'.repeat(81),
-            medium: '6'.repeat(81),
-            hard: '7'.repeat(81),
-        },
+    expect(json.status).toBe('success')
+    expect(json.data).toEqual({
+        simple: '1'.repeat(81),
+        easy: '2'.repeat(81),
+        intermediate: '3'.repeat(81),
+        expert: '4'.repeat(81),
     })
 })
 
 test('GET /api/puzzle omits solutions from response', async () => {
     const postId = context.postId!
-    await redis.hSet(`puzzle:${postId}`, {
-        'easy:puzzle': '5'.repeat(81),
-        'easy:solution': '1'.repeat(81),
-        'medium:puzzle': '6'.repeat(81),
-        'medium:solution': '2'.repeat(81),
-        'hard:puzzle': '7'.repeat(81),
-        'hard:solution': '3'.repeat(81),
-        createdAt: '1234567890',
-    })
+    await seedPuzzles(postId)
 
     const res = await app.request('/api/puzzle')
     const json = await res.json()
 
-    expect(json.data).not.toHaveProperty('easy:solution')
-    expect(json.data).not.toHaveProperty('medium:solution')
-    expect(json.data).not.toHaveProperty('hard:solution')
+    for (const d of DIFFICULTIES) {
+        expect(json.data).not.toHaveProperty(`${d}:solution`)
+    }
 })
 
-
-test('GET /api/puzzle returns 400 when puzzle not found', async () => {
+test('GET /api/puzzle returns 400 when puzzles not found', async () => {
     const res = await app.request('/api/puzzle')
     const json = await res.json()
 
@@ -74,15 +67,12 @@ test('GET /api/puzzle returns 400 when puzzle not found', async () => {
 test('POST /api/validate returns valid: true for correct board', async () => {
     const postId = context.postId!
     const solution = '1'.repeat(81)
-    await redis.hSet(`puzzle:${postId}`, {
-        'easy:solution': solution,
-        'easy:puzzle': '0'.repeat(81),
-    })
+    await redis.hSet(`puzzle:${postId}`, { 'simple:solution': solution, 'simple:puzzle': '0'.repeat(81) })
 
     const res = await app.request('/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ board: solution, difficulty: 'easy' }),
+        body: JSON.stringify({ board: solution, difficulty: 'simple' }),
     })
     const json = await res.json()
 
@@ -92,10 +82,7 @@ test('POST /api/validate returns valid: true for correct board', async () => {
 
 test('POST /api/validate returns valid: false for incorrect board', async () => {
     const postId = context.postId!
-    await redis.hSet(`puzzle:${postId}`, {
-        'easy:solution': '1'.repeat(81),
-        'easy:puzzle': '0'.repeat(81),
-    })
+    await redis.hSet(`puzzle:${postId}`, { 'easy:solution': '1'.repeat(81), 'easy:puzzle': '0'.repeat(81) })
 
     const res = await app.request('/api/validate', {
         method: 'POST',
@@ -108,13 +95,37 @@ test('POST /api/validate returns valid: false for incorrect board', async () => 
     expect(json).toEqual({ valid: false })
 })
 
+test('POST /api/validate accepts all four difficulties', async () => {
+    const postId = context.postId!
+    for (const d of DIFFICULTIES) {
+        const solution = '1'.repeat(81)
+        await redis.hSet(`puzzle:${postId}`, { [`${d}:solution`]: solution })
+        const res = await app.request('/api/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ board: solution, difficulty: d }),
+        })
+        expect(res.status).toBe(200)
+    }
+})
+
+test('POST /api/validate returns 400 for old difficulty values', async () => {
+    for (const d of ['medium', 'hard']) {
+        const res = await app.request('/api/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ board: '1'.repeat(81), difficulty: d }),
+        })
+        expect(res.status).toBe(400)
+    }
+})
+
 test('POST /api/validate returns 400 for missing fields', async () => {
     const res = await app.request('/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
     })
-
     expect(res.status).toBe(400)
 })
 
@@ -124,7 +135,6 @@ test('POST /api/validate returns 400 for invalid difficulty', async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ board: '1'.repeat(81), difficulty: 'extreme' }),
     })
-
     expect(res.status).toBe(400)
 })
 
@@ -134,6 +144,5 @@ test('POST /api/validate returns 400 for invalid board length', async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ board: '123', difficulty: 'easy' }),
     })
-
     expect(res.status).toBe(400)
 })

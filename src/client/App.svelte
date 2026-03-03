@@ -11,7 +11,7 @@
 
 	let screen: GameScreen = $state("picking");
 	let puzzles: Record<Difficulty, string> | null = $state(null);
-	let difficulty: Difficulty = $state("easy");
+	let difficulty: Difficulty = $state("simple");
 	let board: CellState[][] = $state([]);
 	let selectedRow: number | null = $state(null);
 	let selectedCol: number | null = $state(null);
@@ -126,7 +126,7 @@
 				Choose a difficulty
 			</p>
 			<div class="flex gap-3 justify-center">
-				{#each ["easy", "medium", "hard"] as d (d)}
+				{#each ["simple", "easy", "intermediate", "expert"] as d (d)}
 					<button
 						class="px-5 py-3 rounded-lg font-semibold capitalize bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]"
 						onclick={() => selectDifficulty(d as Difficulty)}
