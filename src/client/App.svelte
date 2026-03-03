@@ -125,10 +125,10 @@
 			<p class="text-neutral-600 dark:text-neutral-400">
 				Choose a difficulty
 			</p>
-			<div class="flex gap-3 justify-center">
+			<div class="flex flex-col gap-3 justify-center">
 				{#each ["simple", "easy", "intermediate", "expert"] as d (d)}
 					<button
-						class="px-5 py-3 rounded-lg font-semibold capitalize bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]"
+						class="w-full px-5 py-3 rounded-lg font-semibold capitalize bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]"
 						onclick={() => selectDifficulty(d as Difficulty)}
 					>
 						{d}
