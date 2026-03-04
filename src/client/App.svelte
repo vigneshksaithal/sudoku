@@ -9,6 +9,13 @@
 	} from "./lib/sudoku-utils";
 	import type { CellState, Difficulty, GameScreen } from "./lib/types";
 
+	const ARROW_MOVES: Record<string, [number, number]> = {
+		ArrowUp: [-1, 0],
+		ArrowDown: [1, 0],
+		ArrowLeft: [0, -1],
+		ArrowRight: [0, 1],
+	} as const;
+
 	let screen: GameScreen = $state("picking");
 	let puzzles: Record<Difficulty, string> | null = $state(null);
 	let difficulty: Difficulty = $state("simple");
@@ -51,6 +58,33 @@
 	const handleCellSelect = (row: number, col: number): void => {
 		selectedRow = row;
 		selectedCol = col;
+	};
+
+	const handleKeyDown = (e: KeyboardEvent): void => {
+		if (screen !== "playing" || selectedRow === null || selectedCol === null) return;
+
+		const key = e.key;
+
+		if (key >= "1" && key <= "9") {
+			handleNumber(parseInt(key));
+			return;
+		}
+
+		if (key === "Backspace" || key === "Delete" || key === "0") {
+			e.preventDefault();
+			handleErase();
+			return;
+		}
+
+		const move = ARROW_MOVES[key];
+		if (move) {
+			e.preventDefault();
+			const [dr, dc] = move;
+			const newRow = Math.max(0, Math.min(8, selectedRow + dr));
+			const newCol = Math.max(0, Math.min(8, selectedCol + dc));
+			selectedRow = newRow;
+			selectedCol = newCol;
+		}
 	};
 
 	const handleNumber = (num: number): void => {
@@ -103,6 +137,8 @@
 		validationMessage = null;
 	};
 </script>
+
+<svelte:window onkeydown={handleKeyDown} />
 
 <main
 	class="flex min-h-screen items-center justify-center p-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
