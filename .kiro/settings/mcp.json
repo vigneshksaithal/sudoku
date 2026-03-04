@@ -8,7 +8,8 @@
         "get-documentation",
         "svelte-autofixer",
         "svelte-autofixer",
-        "svelte-autofixer"
+        "svelte-autofixer",
+        "playground-link"
       ]
     },
     "devvit": {
