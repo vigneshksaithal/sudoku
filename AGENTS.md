@@ -209,3 +209,20 @@ Use for any Devvit platform question, Redis patterns, Reddit API, config, or con
 
 Prefer `devvit_search` over pasting large doc files into context. It's hybrid search so natural language queries work well (e.g. `"redis sorted set leaderboard"`, `"custom post height options"`).
 
+---
+
+## Research & Clarification
+
+### Use web search when uncertain
+- If you're unsure about an API, library version, behavior, or best practice — search the web first
+- Don't guess at package APIs, config options, or platform constraints — look them up
+- Use web search and web fetch tools proactively for anything outside your confident knowledge
+- Prefer official docs and recent sources; cross-reference when results conflict
+
+### Ask questions until ≥90% confident
+- Before starting implementation, assess your confidence in the approach
+- If confidence is below 90%, ask the user clarifying questions — don't assume
+- Cover: expected behavior, edge cases, integration points, constraints, and user preferences
+- It's better to ask one extra question than to build the wrong thing
+- Once you're ≥90% sure of the requirements and approach, proceed without further delay
+
