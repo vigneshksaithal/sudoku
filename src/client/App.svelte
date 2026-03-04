@@ -7,7 +7,18 @@
 		parseBoard,
 		updateConflicts,
 	} from "./lib/sudoku-utils";
-	import type { CellState, Difficulty, GameScreen } from "./lib/types";
+	import {
+		createEmptyNotesBoard,
+		toggleNote,
+		clearCellNotes,
+		cleanupNotes,
+	} from "./lib/notes-utils";
+	import type {
+		CellState,
+		Difficulty,
+		GameScreen,
+		NotesBoard,
+	} from "./lib/types";
 
 	const ARROW_MOVES: Record<string, [number, number]> = {
 		ArrowUp: [-1, 0],
@@ -26,6 +37,14 @@
 	let error: string | null = $state(null);
 	let validating = $state(false);
 	let validationMessage: string | null = $state(null);
+	let notesMode = $state(false);
+	let notesBoard: NotesBoard = $state(createEmptyNotesBoard());
+
+	const highlightDigit = $derived(
+		selectedRow !== null && selectedCol !== null
+			? board[selectedRow]?.[selectedCol]?.value || null
+			: null,
+	);
 
 	const fetchPuzzles = async (): Promise<void> => {
 		loading = true;
@@ -52,6 +71,8 @@
 		selectedRow = null;
 		selectedCol = null;
 		validationMessage = null;
+		notesBoard = createEmptyNotesBoard();
+		notesMode = false;
 		screen = "playing";
 	};
 
@@ -61,9 +82,23 @@
 	};
 
 	const handleKeyDown = (e: KeyboardEvent): void => {
-		if (screen !== "playing" || selectedRow === null || selectedCol === null) return;
+		if (
+			screen !== "playing" ||
+			selectedRow === null ||
+			selectedCol === null
+		)
+			return;
 
 		const key = e.key;
+
+		// Shift+digit: toggle note regardless of notesMode
+		if (e.shiftKey && key >= "1" && key <= "9") {
+			const cell = board[selectedRow]?.[selectedCol];
+			if (cell && !cell.isGiven && cell.value === 0) {
+				toggleNote(notesBoard, selectedRow, selectedCol, parseInt(key));
+			}
+			return;
+		}
 
 		if (key >= "1" && key <= "9") {
 			handleNumber(parseInt(key));
@@ -91,17 +126,34 @@
 		if (selectedRow === null || selectedCol === null) return;
 		const cell = board[selectedRow]?.[selectedCol];
 		if (!cell || cell.isGiven) return;
-		board[selectedRow]![selectedCol] = { ...cell, value: num };
-		board = updateConflicts(board);
-		checkCompletion();
+
+		if (notesMode) {
+			// In notes mode: only toggle note if cell has no value
+			if (cell.value !== 0) return;
+			toggleNote(notesBoard, selectedRow, selectedCol, num);
+		} else {
+			// Normal mode: place value, clear cell notes, cleanup peer notes
+			board[selectedRow]![selectedCol] = { ...cell, value: num };
+			board = updateConflicts(board);
+			clearCellNotes(notesBoard, selectedRow, selectedCol);
+			cleanupNotes(notesBoard, selectedRow, selectedCol, num);
+			checkCompletion();
+		}
 	};
 
 	const handleErase = (): void => {
 		if (selectedRow === null || selectedCol === null) return;
 		const cell = board[selectedRow]?.[selectedCol];
 		if (!cell || cell.isGiven) return;
-		board[selectedRow]![selectedCol] = { ...cell, value: 0 };
-		board = updateConflicts(board);
+
+		if (notesMode) {
+			// In notes mode: clear notes from selected cell, don't touch value
+			clearCellNotes(notesBoard, selectedRow, selectedCol);
+		} else {
+			// Normal mode: clear the cell's value (do NOT restore notes)
+			board[selectedRow]![selectedCol] = { ...cell, value: 0 };
+			board = updateConflicts(board);
+		}
 	};
 
 	const checkCompletion = async (): Promise<void> => {
@@ -190,9 +242,18 @@
 				{board}
 				{selectedRow}
 				{selectedCol}
+				{notesBoard}
+				{highlightDigit}
 				onCellSelect={handleCellSelect}
 			/>
-			<NumberPad onNumber={handleNumber} onErase={handleErase} />
+			<NumberPad
+				onNumber={handleNumber}
+				onErase={handleErase}
+				{notesMode}
+				onToggleNotes={() => {
+					notesMode = !notesMode;
+				}}
+			/>
 			{#if validating}
 				<p class="text-sm text-neutral-500">Checking…</p>
 			{/if}

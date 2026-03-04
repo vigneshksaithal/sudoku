@@ -1,15 +1,21 @@
 <script lang="ts">
-    import type { CellState } from "../lib/types";
+    import type { CellState, NotesBoard } from "../lib/types";
+
+    const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
     let {
         board,
+        notesBoard,
         selectedRow,
         selectedCol,
+        highlightDigit,
         onCellSelect,
     }: {
         board: CellState[][];
+        notesBoard: NotesBoard;
         selectedRow: number | null;
         selectedCol: number | null;
+        highlightDigit: number | null;
         onCellSelect: (row: number, col: number) => void;
     } = $props();
 </script>
@@ -35,6 +41,13 @@
                     cell.isGiven
                         ? "font-semibold bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100"
                         : "bg-white dark:bg-neutral-800 text-blue-600 dark:text-blue-400",
+                    highlightDigit !== null &&
+                        cell.value === highlightDigit &&
+                        "bg-blue-100 dark:bg-blue-900/30",
+                    highlightDigit !== null &&
+                        cell.value === 0 &&
+                        notesBoard[r]?.[c]?.has(highlightDigit) &&
+                        "bg-yellow-100 dark:bg-yellow-900/30",
                     cell.hasConflict &&
                         "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30",
                     r === selectedRow &&
@@ -48,7 +61,24 @@
                 aria-selected={r === selectedRow && c === selectedCol}
                 role="gridcell"
             >
-                {cell.value || ""}
+                {#if cell.value > 0}
+                    {cell.value}
+                {:else}
+                    <div class="grid grid-cols-3 w-full h-full p-[1px]">
+                        {#each DIGITS as digit (digit)}
+                            <span
+                                class={[
+                                    "flex items-center justify-center text-[0.5rem] sm:text-[0.6rem] leading-none",
+                                    highlightDigit === digit &&
+                                        notesBoard[r]?.[c]?.has(digit) &&
+                                        "text-blue-600 font-bold",
+                                ]}
+                            >
+                                {notesBoard[r]?.[c]?.has(digit) ? digit : ""}
+                            </span>
+                        {/each}
+                    </div>
+                {/if}
             </button>
         {/each}
     {/each}

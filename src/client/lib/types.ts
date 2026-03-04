@@ -1,3 +1,5 @@
+import { SvelteSet } from 'svelte/reactivity'
+
 export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'expert'
 
 export type GameScreen = 'picking' | 'playing' | 'completed'
@@ -7,3 +9,5 @@ export type CellState = {
     isGiven: boolean
     hasConflict: boolean
 }
+
+export type NotesBoard = SvelteSet<number>[][]
