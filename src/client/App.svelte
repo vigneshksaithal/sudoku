@@ -13,6 +13,17 @@
 		clearCellNotes,
 		cleanupNotes,
 	} from "./lib/notes-utils";
+	import {
+		EMPTY_SELECTION,
+		clearSelection,
+		extendSelection,
+		isMultiSelection,
+		moveFocus,
+		setSelection,
+		toggleSelection,
+	} from "./lib/selection-utils";
+	import { applyAutoNotes, applyMultiErase } from "./lib/app-logic";
+	import type { Selection } from "./lib/selection-utils";
 	import type {
 		CellState,
 		Difficulty,
@@ -31,8 +42,7 @@
 	let puzzles: Record<Difficulty, string> | null = $state(null);
 	let difficulty: Difficulty = $state("simple");
 	let board: CellState[][] = $state([]);
-	let selectedRow: number | null = $state(null);
-	let selectedCol: number | null = $state(null);
+	let selection: Selection = $state(EMPTY_SELECTION);
 	let loading = $state(true);
 	let error: string | null = $state(null);
 	let validating = $state(false);
@@ -41,8 +51,9 @@
 	let notesBoard: NotesBoard = $state(createEmptyNotesBoard());
 
 	const highlightDigit = $derived(
-		selectedRow !== null && selectedCol !== null
-			? board[selectedRow]?.[selectedCol]?.value || null
+		selection.focusCell
+			? board[selection.focusCell[0]]?.[selection.focusCell[1]]?.value ||
+					null
 			: null,
 	);
 
@@ -68,8 +79,7 @@
 		if (!puzzles) return;
 		difficulty = d;
 		board = updateConflicts(parseBoard(puzzles[d]));
-		selectedRow = null;
-		selectedCol = null;
+		selection = EMPTY_SELECTION;
 		validationMessage = null;
 		notesBoard = createEmptyNotesBoard();
 		notesMode = false;
@@ -77,19 +87,30 @@
 	};
 
 	const handleCellSelect = (row: number, col: number): void => {
-		selectedRow = row;
-		selectedCol = col;
+		selection = setSelection(row, col);
+	};
+
+	const handleCellExtend = (row: number, col: number): void => {
+		selection = extendSelection(selection, row, col);
+	};
+
+	const handleCellToggle = (row: number, col: number): void => {
+		selection = toggleSelection(selection, row, col);
 	};
 
 	const handleKeyDown = (e: KeyboardEvent): void => {
-		if (
-			screen !== "playing" ||
-			selectedRow === null ||
-			selectedCol === null
-		)
-			return;
+		if (screen !== "playing") return;
 
 		const key = e.key;
+
+		// Escape: clear selection
+		if (key === "Escape") {
+			selection = clearSelection();
+			return;
+		}
+
+		if (selection.focusCell === null) return;
+		const [selectedRow, selectedCol] = selection.focusCell;
 
 		// Shift+digit: toggle note regardless of notesMode
 		if (e.shiftKey && key >= "1" && key <= "9") {
@@ -115,15 +136,18 @@
 		if (move) {
 			e.preventDefault();
 			const [dr, dc] = move;
-			const newRow = Math.max(0, Math.min(8, selectedRow + dr));
-			const newCol = Math.max(0, Math.min(8, selectedCol + dc));
-			selectedRow = newRow;
-			selectedCol = newCol;
+			selection = moveFocus(selection.focusCell, dr, dc);
 		}
 	};
 
 	const handleNumber = (num: number): void => {
-		if (selectedRow === null || selectedCol === null) return;
+		if (isMultiSelection(selection)) {
+			applyAutoNotes(board, notesBoard, selection, num);
+			return;
+		}
+
+		if (selection.focusCell === null) return;
+		const [selectedRow, selectedCol] = selection.focusCell;
 		const cell = board[selectedRow]?.[selectedCol];
 		if (!cell || cell.isGiven) return;
 
@@ -142,7 +166,13 @@
 	};
 
 	const handleErase = (): void => {
-		if (selectedRow === null || selectedCol === null) return;
+		if (isMultiSelection(selection)) {
+			applyMultiErase(board, notesBoard, selection);
+			return;
+		}
+
+		if (selection.focusCell === null) return;
+		const [selectedRow, selectedCol] = selection.focusCell;
 		const cell = board[selectedRow]?.[selectedCol];
 		if (!cell || cell.isGiven) return;
 
@@ -184,8 +214,7 @@
 
 	const backToPicking = (): void => {
 		screen = "picking";
-		selectedRow = null;
-		selectedCol = null;
+		selection = EMPTY_SELECTION;
 		validationMessage = null;
 	};
 </script>
@@ -240,11 +269,13 @@
 			</div>
 			<Grid
 				{board}
-				{selectedRow}
-				{selectedCol}
+				{selection}
 				{notesBoard}
 				{highlightDigit}
 				onCellSelect={handleCellSelect}
+				onCellExtend={handleCellExtend}
+				onCellToggle={handleCellToggle}
+				onDragEnd={() => {}}
 			/>
 			<NumberPad
 				onNumber={handleNumber}
