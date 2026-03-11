@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { onMount, untrack } from "svelte";
 	import Grid from "./components/Grid.svelte";
 	import NumberPad from "./components/NumberPad.svelte";
 	import {
@@ -25,6 +25,7 @@
 	} from "./lib/selection-utils";
 	import { applyAutoNotes, applyMultiErase } from "./lib/app-logic";
 	import { DIFFICULTY_STORAGE_KEY } from "./lib/constants";
+	import { getBestHintCell } from "./lib/hint-logic";
 	import type { Selection } from "./lib/selection-utils";
 	import type {
 		CellState,
@@ -40,10 +41,20 @@
 		ArrowRight: [0, 1],
 	} as const;
 
-	let { difficulty }: { difficulty: Difficulty } = $props();
+	const DIFFICULTIES: readonly Difficulty[] = [
+		"simple",
+		"easy",
+		"intermediate",
+		"expert",
+	] as const;
+
+	let { difficulty: initialDifficulty }: { difficulty: Difficulty } =
+		$props();
+	let difficulty: Difficulty = $state(untrack(() => initialDifficulty));
 
 	let screen: GameScreen = $state("playing");
 	let puzzles: Record<Difficulty, string> | null = $state(null);
+	let solutions: Record<Difficulty, string> | null = $state(null);
 	let board: CellState[][] = $state([]);
 	let selection: Selection = $state(EMPTY_SELECTION);
 	let loading = $state(true);
@@ -52,6 +63,14 @@
 	let validationMessage: string | null = $state(null);
 	let notesMode = $state(false);
 	let notesBoard: NotesBoard = $state(createEmptyNotesBoard());
+	let hintsUsed: number = $state(0);
+	let hintCell: { row: number; col: number } | null = $state(null);
+
+	const MAX_HINTS = 3;
+	const hintsRemaining = $derived(MAX_HINTS - hintsUsed);
+	const hintsDisabled = $derived(
+		hintsRemaining === 0 || screen !== "playing" || solutions === null,
+	);
 
 	const highlightDigit = $derived(
 		selection.focusCell
@@ -68,16 +87,20 @@
 			const json = await res.json();
 			if (!res.ok)
 				throw new Error(json.message ?? "Failed to load puzzles");
-			puzzles = json.data;
+			puzzles = json.data.puzzles;
+			solutions = json.data.solutions ?? null;
 			if (puzzles) {
 				board = updateConflicts(parseBoard(puzzles[difficulty]));
 				selection = EMPTY_SELECTION;
 				validationMessage = null;
 				notesBoard = createEmptyNotesBoard();
 				notesMode = false;
+				hintsUsed = 0;
+				hintCell = null;
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : "Failed to load puzzles";
+			solutions = null;
 		} finally {
 			loading = false;
 		}
@@ -187,6 +210,28 @@
 		}
 	};
 
+	const handleHint = (): void => {
+		if (solutions === null || hintsUsed >= MAX_HINTS) return;
+		const solutionStr = solutions[difficulty];
+		if (!solutionStr) return;
+		const solutionFlat = Array.from(solutionStr).map(Number);
+		const hint = getBestHintCell(board, solutionFlat);
+		if (hint === null) return;
+		board[hint.row]![hint.col] = {
+			...board[hint.row]![hint.col]!,
+			value: hint.value,
+		};
+		clearCellNotes(notesBoard, hint.row, hint.col);
+		cleanupNotes(notesBoard, hint.row, hint.col, hint.value);
+		board = updateConflicts(board);
+		hintsUsed++;
+		hintCell = { row: hint.row, col: hint.col };
+		setTimeout(() => {
+			hintCell = null;
+		}, 1500);
+		checkCompletion();
+	};
+
 	const checkCompletion = async (): Promise<void> => {
 		if (!isComplete(board)) return;
 		validating = true;
@@ -213,6 +258,19 @@
 		}
 	};
 
+	const changeDifficulty = (next: Difficulty): void => {
+		if (next === difficulty || puzzles === null) return;
+		difficulty = next;
+		board = updateConflicts(parseBoard(puzzles[next]));
+		selection = EMPTY_SELECTION;
+		validationMessage = null;
+		notesBoard = createEmptyNotesBoard();
+		notesMode = false;
+		hintsUsed = 0;
+		hintCell = null;
+		screen = "playing";
+	};
+
 	const returnToPreview = (): void => {
 		localStorage.removeItem(DIFFICULTY_STORAGE_KEY);
 	};
@@ -236,24 +294,28 @@
 			</button>
 		</div>
 	{:else if screen === "playing"}
-		<div class="flex flex-col items-center gap-4 w-full max-w-sm">
-			<div class="flex items-center justify-between w-full">
-				<button
-					class="text-sm text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
-					onclick={returnToPreview}
-				>
-					← Back
-				</button>
-				<span
-					class="text-sm font-medium capitalize text-neutral-600 dark:text-neutral-400"
-					>{difficulty}</span
-				>
+		<div
+			class="flex flex-col items-center gap-3 w-full max-w-md px-2 sm:px-4"
+		>
+			<div class="flex items-center justify-center gap-1 w-full">
+				{#each DIFFICULTIES as d (d)}
+					<button
+						class="px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
+							{d === difficulty
+							? 'bg-blue-600 text-white'
+							: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
+						onclick={() => changeDifficulty(d)}
+					>
+						{d}
+					</button>
+				{/each}
 			</div>
 			<Grid
 				{board}
 				{selection}
 				{notesBoard}
 				{highlightDigit}
+				{hintCell}
 				onCellSelect={handleCellSelect}
 				onCellExtend={handleCellExtend}
 				onCellToggle={handleCellToggle}
@@ -266,6 +328,9 @@
 				onToggleNotes={() => {
 					notesMode = !notesMode;
 				}}
+				onHint={handleHint}
+				{hintsRemaining}
+				{hintsDisabled}
 			/>
 			{#if validating}
 				<p class="text-sm text-neutral-500">Checking…</p>

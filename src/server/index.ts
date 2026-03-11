@@ -52,15 +52,20 @@ app.get('/api/puzzle', async (c) => {
 
   const data = await redis.hGetAll(`puzzle:${postId}`)
   const puzzles: Record<string, string> = {}
+  const solutions: Record<string, string> = {}
   for (const d of VALID_DIFFICULTIES) {
     const puzzle = data[`${d}:puzzle`]
     if (!puzzle) {
       return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
     }
     puzzles[d] = puzzle
+    const solution = data[`${d}:solution`]
+    if (solution) {
+      solutions[d] = solution
+    }
   }
 
-  return c.json({ status: 'success', data: puzzles })
+  return c.json({ status: 'success', data: { puzzles, solutions } })
 })
 
 // --- POST /api/validate ---

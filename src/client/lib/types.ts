@@ -11,3 +11,5 @@ export type CellState = {
 }
 
 export type NotesBoard = SvelteSet<number>[][]
+
+export type HintCell = { row: number; col: number; value: number }

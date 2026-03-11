@@ -10,6 +10,7 @@
         notesBoard,
         selection,
         highlightDigit,
+        hintCell,
         onCellSelect,
         onCellExtend,
         onCellToggle,
@@ -19,11 +20,15 @@
         notesBoard: NotesBoard;
         selection: Selection;
         highlightDigit: number | null;
+        hintCell: { row: number; col: number } | null;
         onCellSelect: (row: number, col: number) => void;
         onCellExtend: (row: number, col: number) => void;
         onCellToggle: (row: number, col: number) => void;
         onDragEnd: () => void;
     } = $props();
+
+    const isHintCell = (r: number, c: number): boolean =>
+        hintCell !== null && hintCell.row === r && hintCell.col === c;
 
     let isDragging = $state(false);
 
@@ -106,9 +111,13 @@
                         cell.hasConflict &&
                         "bg-red-50 dark:bg-red-900/30",
                     cell.hasConflict && "text-red-600 dark:text-red-400",
-                    // Selection highlight wins over all backgrounds
+                    // Selection highlight wins over base backgrounds
                     isSelected(selection, r, c) &&
                         "bg-blue-200 dark:bg-blue-700/60",
+                    // Hint highlight wins over selection but not conflict
+                    isHintCell(r, c) &&
+                        !cell.hasConflict &&
+                        "bg-amber-200 dark:bg-amber-800/50",
                     selection.focusCell?.[0] === r &&
                         selection.focusCell?.[1] === c &&
                         "outline outline-2 outline-blue-500 z-10",

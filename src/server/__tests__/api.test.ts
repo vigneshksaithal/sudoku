@@ -24,7 +24,7 @@ const seedPuzzles = async (postId: string): Promise<void> => {
 
 // --- GET /api/puzzle ---
 
-test('GET /api/puzzle returns four puzzle strings', async () => {
+test('GET /api/puzzle returns four puzzle strings in data.puzzles', async () => {
     const postId = context.postId!
     await seedPuzzles(postId)
 
@@ -33,7 +33,7 @@ test('GET /api/puzzle returns four puzzle strings', async () => {
 
     expect(res.status).toBe(200)
     expect(json.status).toBe('success')
-    expect(json.data).toEqual({
+    expect(json.data.puzzles).toEqual({
         simple: '1'.repeat(81),
         easy: '2'.repeat(81),
         intermediate: '3'.repeat(81),
@@ -41,7 +41,23 @@ test('GET /api/puzzle returns four puzzle strings', async () => {
     })
 })
 
-test('GET /api/puzzle omits solutions from response', async () => {
+test('GET /api/puzzle returns one solution string per difficulty in data.solutions', async () => {
+    const postId = context.postId!
+    await seedPuzzles(postId)
+
+    const res = await app.request('/api/puzzle')
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.data.solutions).toEqual({
+        simple: '5'.repeat(81),
+        easy: '6'.repeat(81),
+        intermediate: '7'.repeat(81),
+        expert: '8'.repeat(81),
+    })
+})
+
+test('GET /api/puzzle solution strings are 81-char digits 1-9 only', async () => {
     const postId = context.postId!
     await seedPuzzles(postId)
 
@@ -49,7 +65,9 @@ test('GET /api/puzzle omits solutions from response', async () => {
     const json = await res.json()
 
     for (const d of DIFFICULTIES) {
-        expect(json.data).not.toHaveProperty(`${d}:solution`)
+        const solution: string = json.data.solutions[d]
+        expect(solution).toHaveLength(81)
+        expect(/^[1-9]{81}$/.test(solution)).toBe(true)
     }
 })
 
