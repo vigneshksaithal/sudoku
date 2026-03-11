@@ -9,6 +9,8 @@
         onHint,
         hintsRemaining,
         hintsDisabled,
+        onUndo,
+        undoDisabled,
     }: {
         onNumber: (num: number) => void;
         onErase: () => void;
@@ -17,12 +19,23 @@
         onHint: () => void;
         hintsRemaining: number;
         hintsDisabled: boolean;
+        onUndo: () => void;
+        undoDisabled: boolean;
     } = $props();
 </script>
 
 <div class="flex flex-col gap-2 w-full" role="group" aria-label="Number pad">
-    <!-- Controls: notes | hint -->
-    <div class="grid grid-cols-2 gap-2 w-full">
+    <!-- Controls: undo | notes | hint -->
+    <div class="grid grid-cols-3 gap-2 w-full">
+        <IconButton
+            onclick={onUndo}
+            label="Undo last move"
+            variant="default"
+            disabled={undoDisabled}
+        >
+            <span class="text-lg leading-none">↩</span>
+            <span class="text-sm">Undo</span>
+        </IconButton>
         <IconButton
             onclick={onToggleNotes}
             label={notesMode ? "Notes on" : "Notes off"}

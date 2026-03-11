@@ -26,7 +26,15 @@
 	import { applyAutoNotes, applyMultiErase } from "./lib/app-logic";
 	import { DIFFICULTY_STORAGE_KEY } from "./lib/constants";
 	import { getBestHintCell } from "./lib/hint-logic";
+	import {
+		pushSnapshot,
+		popSnapshot,
+		clearStack,
+		captureSnapshot,
+		restoreNotesBoard,
+	} from "./lib/undo-stack";
 	import type { Selection } from "./lib/selection-utils";
+	import type { UndoStack } from "./lib/undo-stack";
 	import type {
 		CellState,
 		Difficulty,
@@ -65,11 +73,15 @@
 	let notesBoard: NotesBoard = $state(createEmptyNotesBoard());
 	let hintsUsed: number = $state(0);
 	let hintCell: { row: number; col: number } | null = $state(null);
+	let undoStack: UndoStack = $state([]);
 
 	const MAX_HINTS = 3;
 	const hintsRemaining = $derived(MAX_HINTS - hintsUsed);
 	const hintsDisabled = $derived(
 		hintsRemaining === 0 || screen !== "playing" || solutions === null,
+	);
+	const undoDisabled = $derived(
+		undoStack.length === 0 || screen !== "playing",
 	);
 
 	const highlightDigit = $derived(
@@ -97,6 +109,7 @@
 				notesMode = false;
 				hintsUsed = 0;
 				hintCell = null;
+				undoStack = clearStack();
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : "Failed to load puzzles";
@@ -109,6 +122,16 @@
 	onMount(() => {
 		fetchPuzzles();
 	});
+
+	const handleUndo = (): void => {
+		if (undoDisabled) return;
+		const [snapshot, next] = popSnapshot(undoStack);
+		if (snapshot === null) return;
+		undoStack = next;
+		board = updateConflicts(snapshot.board);
+		notesBoard = restoreNotesBoard(snapshot.notes);
+		hintsUsed = snapshot.hintsUsed;
+	};
 
 	const handleCellSelect = (row: number, col: number): void => {
 		selection = setSelection(row, col);
@@ -123,6 +146,11 @@
 	};
 
 	const handleKeyDown = (e: KeyboardEvent): void => {
+		if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+			e.preventDefault();
+			handleUndo();
+			return;
+		}
 		if (screen !== "playing") return;
 
 		const key = e.key;
@@ -140,6 +168,10 @@
 		if (e.shiftKey && key >= "1" && key <= "9") {
 			const cell = board[selectedRow]?.[selectedCol];
 			if (cell && !cell.isGiven && cell.value === 0) {
+				undoStack = pushSnapshot(
+					undoStack,
+					captureSnapshot(board, notesBoard, hintsUsed),
+				);
 				toggleNote(notesBoard, selectedRow, selectedCol, parseInt(key));
 			}
 			return;
@@ -165,6 +197,11 @@
 	};
 
 	const handleNumber = (num: number): void => {
+		undoStack = pushSnapshot(
+			undoStack,
+			captureSnapshot(board, notesBoard, hintsUsed),
+		);
+
 		if (isMultiSelection(selection)) {
 			applyAutoNotes(board, notesBoard, selection, num);
 			return;
@@ -190,6 +227,11 @@
 	};
 
 	const handleErase = (): void => {
+		undoStack = pushSnapshot(
+			undoStack,
+			captureSnapshot(board, notesBoard, hintsUsed),
+		);
+
 		if (isMultiSelection(selection)) {
 			applyMultiErase(board, notesBoard, selection);
 			return;
@@ -217,6 +259,10 @@
 		const solutionFlat = Array.from(solutionStr).map(Number);
 		const hint = getBestHintCell(board, solutionFlat);
 		if (hint === null) return;
+		undoStack = pushSnapshot(
+			undoStack,
+			captureSnapshot(board, notesBoard, hintsUsed),
+		);
 		board[hint.row]![hint.col] = {
 			...board[hint.row]![hint.col]!,
 			value: hint.value,
@@ -268,6 +314,7 @@
 		notesMode = false;
 		hintsUsed = 0;
 		hintCell = null;
+		undoStack = clearStack();
 		screen = "playing";
 	};
 
@@ -331,6 +378,8 @@
 				onHint={handleHint}
 				{hintsRemaining}
 				{hintsDisabled}
+				onUndo={handleUndo}
+				{undoDisabled}
 			/>
 			{#if validating}
 				<p class="text-sm text-neutral-500">Checking…</p>
