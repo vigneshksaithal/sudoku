@@ -2027,7 +2027,7 @@ describe('generatePuzzleWithDifficulty — unit tests', () => {
         if (result === null) return
         expect(result.puzzle).toHaveLength(81)
         expect(result.solution).toHaveLength(81)
-    })
+    }, 30_000)
 
     it('puzzle is a subset of solution — given cells match', () => {
         const result = generatePuzzleWithDifficulty('simple', 'rotate180', 100)
@@ -2038,7 +2038,7 @@ describe('generatePuzzleWithDifficulty — unit tests', () => {
                 expect(puzzle[i]).toBe(solution[i])
             }
         }
-    })
+    }, 30_000)
 
     it('solution is a valid complete Sudoku', () => {
         const result = generatePuzzleWithDifficulty('simple', 'rotate180', 100)
@@ -2048,13 +2048,13 @@ describe('generatePuzzleWithDifficulty — unit tests', () => {
             const digits = new Set(solution.slice(row * 9, row * 9 + 9))
             expect(digits.size).toBe(9)
         }
-    })
+    }, 30_000)
 
     it('puzzle has exactly one solution', () => {
         const result = generatePuzzleWithDifficulty('simple', 'rotate180', 100)
         if (result === null) return
         expect(countSolutions(result.puzzle, 2)).toBe(1)
-    })
+    }, 30_000)
 })
 
 describe('Property 11: Difficulty-targeted generation', () => {

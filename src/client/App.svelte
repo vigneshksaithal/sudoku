@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from "svelte";
 	import Grid from "./components/Grid.svelte";
 	import NumberPad from "./components/NumberPad.svelte";
 	import {
@@ -23,6 +24,7 @@
 		toggleSelection,
 	} from "./lib/selection-utils";
 	import { applyAutoNotes, applyMultiErase } from "./lib/app-logic";
+	import { DIFFICULTY_STORAGE_KEY } from "./lib/constants";
 	import type { Selection } from "./lib/selection-utils";
 	import type {
 		CellState,
@@ -38,9 +40,10 @@
 		ArrowRight: [0, 1],
 	} as const;
 
-	let screen: GameScreen = $state("picking");
+	let { difficulty }: { difficulty: Difficulty } = $props();
+
+	let screen: GameScreen = $state("playing");
 	let puzzles: Record<Difficulty, string> | null = $state(null);
-	let difficulty: Difficulty = $state("simple");
 	let board: CellState[][] = $state([]);
 	let selection: Selection = $state(EMPTY_SELECTION);
 	let loading = $state(true);
@@ -66,6 +69,13 @@
 			if (!res.ok)
 				throw new Error(json.message ?? "Failed to load puzzles");
 			puzzles = json.data;
+			if (puzzles) {
+				board = updateConflicts(parseBoard(puzzles[difficulty]));
+				selection = EMPTY_SELECTION;
+				validationMessage = null;
+				notesBoard = createEmptyNotesBoard();
+				notesMode = false;
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : "Failed to load puzzles";
 		} finally {
@@ -73,18 +83,9 @@
 		}
 	};
 
-	fetchPuzzles();
-
-	const selectDifficulty = (d: Difficulty): void => {
-		if (!puzzles) return;
-		difficulty = d;
-		board = updateConflicts(parseBoard(puzzles[d]));
-		selection = EMPTY_SELECTION;
-		validationMessage = null;
-		notesBoard = createEmptyNotesBoard();
-		notesMode = false;
-		screen = "playing";
-	};
+	onMount(() => {
+		fetchPuzzles();
+	});
 
 	const handleCellSelect = (row: number, col: number): void => {
 		selection = setSelection(row, col);
@@ -212,10 +213,8 @@
 		}
 	};
 
-	const backToPicking = (): void => {
-		screen = "picking";
-		selection = EMPTY_SELECTION;
-		validationMessage = null;
+	const returnToPreview = (): void => {
+		localStorage.removeItem(DIFFICULTY_STORAGE_KEY);
 	};
 </script>
 
@@ -236,29 +235,12 @@
 				Retry
 			</button>
 		</div>
-	{:else if screen === "picking"}
-		<div class="text-center space-y-6">
-			<h1 class="text-3xl font-bold">Sudoku</h1>
-			<p class="text-neutral-600 dark:text-neutral-400">
-				Choose a difficulty
-			</p>
-			<div class="flex flex-col gap-3 justify-center">
-				{#each ["simple", "easy", "intermediate", "expert"] as d (d)}
-					<button
-						class="w-full px-5 py-3 rounded-lg font-semibold capitalize bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]"
-						onclick={() => selectDifficulty(d as Difficulty)}
-					>
-						{d}
-					</button>
-				{/each}
-			</div>
-		</div>
 	{:else if screen === "playing"}
 		<div class="flex flex-col items-center gap-4 w-full max-w-sm">
 			<div class="flex items-center justify-between w-full">
 				<button
 					class="text-sm text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
-					onclick={backToPicking}
+					onclick={returnToPreview}
 				>
 					← Back
 				</button>
@@ -302,7 +284,7 @@
 			</p>
 			<button
 				class="px-5 py-3 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]"
-				onclick={backToPicking}
+				onclick={returnToPreview}
 			>
 				Try another difficulty
 			</button>
