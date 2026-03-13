@@ -1,5 +1,9 @@
 <script lang="ts">
-    import type { CellState, NotesBoard } from "../lib/types";
+    import type {
+        CellState,
+        NotesBoard,
+        TechniqueHighlight,
+    } from "../lib/types";
     import type { Selection } from "../lib/selection-utils";
     import { isSelected } from "../lib/selection-utils";
 
@@ -10,7 +14,8 @@
         notesBoard,
         selection,
         highlightDigit,
-        hintCell,
+        techniqueHighlight,
+        hintDigit,
         onCellSelect,
         onCellExtend,
         onCellToggle,
@@ -20,15 +25,25 @@
         notesBoard: NotesBoard;
         selection: Selection;
         highlightDigit: number | null;
-        hintCell: { row: number; col: number } | null;
+        techniqueHighlight: TechniqueHighlight | null;
+        hintDigit: number | null;
         onCellSelect: (row: number, col: number) => void;
         onCellExtend: (row: number, col: number) => void;
         onCellToggle: (row: number, col: number) => void;
         onDragEnd: () => void;
     } = $props();
 
-    const isHintCell = (r: number, c: number): boolean =>
-        hintCell !== null && hintCell.row === r && hintCell.col === c;
+    const isPrimaryCell = (r: number, c: number): boolean =>
+        techniqueHighlight !== null &&
+        techniqueHighlight.primaryCells.some(
+            ([pr, pc]) => pr === r && pc === c,
+        );
+
+    const isSecondaryCell = (r: number, c: number): boolean =>
+        techniqueHighlight !== null &&
+        techniqueHighlight.secondaryCells.some(
+            ([sr, sc]) => sr === r && sc === c,
+        );
 
     let isDragging = $state(false);
 
@@ -114,10 +129,14 @@
                     // Selection highlight wins over base backgrounds
                     isSelected(selection, r, c) &&
                         "bg-blue-200 dark:bg-blue-700/60",
-                    // Hint highlight wins over selection but not conflict
-                    isHintCell(r, c) &&
+                    // Secondary technique highlight (lower priority than primary)
+                    isSecondaryCell(r, c) &&
                         !cell.hasConflict &&
-                        "bg-amber-200 dark:bg-amber-800/50",
+                        "bg-cyan-100 dark:bg-cyan-900/30",
+                    // Primary technique highlight wins over secondary and selection
+                    isPrimaryCell(r, c) &&
+                        !cell.hasConflict &&
+                        "bg-emerald-200 dark:bg-emerald-800/50",
                     selection.focusCell?.[0] === r &&
                         selection.focusCell?.[1] === c &&
                         "outline outline-2 outline-blue-500 z-10",
@@ -131,6 +150,12 @@
             >
                 {#if cell.value > 0}
                     {cell.value}
+                {:else if isPrimaryCell(r, c) && hintDigit !== null}
+                    <span
+                        class="text-emerald-600 dark:text-emerald-400 font-bold opacity-70 text-lg"
+                    >
+                        {hintDigit}
+                    </span>
                 {:else}
                     <div class="grid grid-cols-3 w-full h-full p-[1px]">
                         {#each DIGITS as digit (digit)}

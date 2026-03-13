@@ -25,7 +25,9 @@
 	} from "./lib/selection-utils";
 	import { applyAutoNotes, applyMultiErase } from "./lib/app-logic";
 	import { DIFFICULTY_STORAGE_KEY } from "./lib/constants";
-	import { getBestHintCell } from "./lib/hint-logic";
+	import HintPanel from "./components/HintPanel.svelte";
+	import { findTechniqueHint } from "./lib/technique-hints/technique-engine";
+	import { buildCandidateBoard } from "./lib/technique-hints/candidate-board";
 	import {
 		pushSnapshot,
 		popSnapshot,
@@ -40,6 +42,7 @@
 		Difficulty,
 		GameScreen,
 		NotesBoard,
+		TechniqueHint,
 	} from "./lib/types";
 
 	const ARROW_MOVES: Record<string, [number, number]> = {
@@ -72,14 +75,25 @@
 	let notesMode = $state(false);
 	let notesBoard: NotesBoard = $state(createEmptyNotesBoard());
 	let hintsUsed: number = $state(0);
-	let hintCell: { row: number; col: number } | null = $state(null);
+	let activeHint: TechniqueHint | null = $state(null);
 	let undoStack: UndoStack = $state([]);
 
 	const MAX_HINTS = 3;
 	const hintsRemaining = $derived(MAX_HINTS - hintsUsed);
 	const hintsDisabled = $derived(
-		hintsRemaining === 0 || screen !== "playing" || solutions === null,
+		hintsRemaining === 0 ||
+			screen !== "playing" ||
+			solutions === null ||
+			activeHint !== null,
 	);
+	const techniqueHighlight = $derived.by(() => {
+		const hint: TechniqueHint | null = activeHint;
+		if (hint === null) return null;
+		return {
+			primaryCells: hint.primaryCells,
+			secondaryCells: hint.secondaryCells,
+		};
+	});
 	const undoDisabled = $derived(
 		undoStack.length === 0 || screen !== "playing",
 	);
@@ -108,7 +122,7 @@
 				notesBoard = createEmptyNotesBoard();
 				notesMode = false;
 				hintsUsed = 0;
-				hintCell = null;
+				activeHint = null;
 				undoStack = clearStack();
 			}
 		} catch (e) {
@@ -253,29 +267,16 @@
 	};
 
 	const handleHint = (): void => {
-		if (solutions === null || hintsUsed >= MAX_HINTS) return;
+		if (solutions === null || hintsUsed >= MAX_HINTS || activeHint !== null)
+			return;
 		const solutionStr = solutions[difficulty];
 		if (!solutionStr) return;
 		const solutionFlat = Array.from(solutionStr).map(Number);
-		const hint = getBestHintCell(board, solutionFlat);
+		const candidates = buildCandidateBoard(board);
+		const hint = findTechniqueHint(board, candidates, solutionFlat);
 		if (hint === null) return;
-		undoStack = pushSnapshot(
-			undoStack,
-			captureSnapshot(board, notesBoard, hintsUsed),
-		);
-		board[hint.row]![hint.col] = {
-			...board[hint.row]![hint.col]!,
-			value: hint.value,
-		};
-		clearCellNotes(notesBoard, hint.row, hint.col);
-		cleanupNotes(notesBoard, hint.row, hint.col, hint.value);
-		board = updateConflicts(board);
+		activeHint = hint;
 		hintsUsed++;
-		hintCell = { row: hint.row, col: hint.col };
-		setTimeout(() => {
-			hintCell = null;
-		}, 1500);
-		checkCompletion();
 	};
 
 	const checkCompletion = async (): Promise<void> => {
@@ -304,6 +305,41 @@
 		}
 	};
 
+	const handleApplyHint = (): void => {
+		if (activeHint === null) return;
+		undoStack = pushSnapshot(
+			undoStack,
+			captureSnapshot(board, notesBoard, hintsUsed),
+		);
+		if (activeHint.action === "placement") {
+			const [row, col] = activeHint.primaryCells[0]!;
+			// Stale hint guard: cell may have been filled since hint was generated
+			if (board[row]?.[col]?.value !== 0) {
+				activeHint = null;
+				return;
+			}
+			board[row]![col] = {
+				...board[row]![col]!,
+				value: activeHint.digit,
+			};
+			clearCellNotes(notesBoard, row, col);
+			cleanupNotes(notesBoard, row, col, activeHint.digit);
+		} else {
+			for (const elim of activeHint.eliminations ?? []) {
+				for (const digit of elim.digits) {
+					notesBoard[elim.row]?.[elim.col]?.delete(digit);
+				}
+			}
+		}
+		board = updateConflicts(board);
+		activeHint = null;
+		checkCompletion();
+	};
+
+	const handleDismissHint = (): void => {
+		activeHint = null;
+	};
+
 	const changeDifficulty = (next: Difficulty): void => {
 		if (next === difficulty || puzzles === null) return;
 		difficulty = next;
@@ -313,7 +349,7 @@
 		notesBoard = createEmptyNotesBoard();
 		notesMode = false;
 		hintsUsed = 0;
-		hintCell = null;
+		activeHint = null;
 		undoStack = clearStack();
 		screen = "playing";
 	};
@@ -362,12 +398,22 @@
 				{selection}
 				{notesBoard}
 				{highlightDigit}
-				{hintCell}
+				{techniqueHighlight}
+				hintDigit={activeHint?.action === "placement"
+					? activeHint.digit
+					: null}
 				onCellSelect={handleCellSelect}
 				onCellExtend={handleCellExtend}
 				onCellToggle={handleCellToggle}
 				onDragEnd={() => {}}
 			/>
+			{#if activeHint !== null}
+				<HintPanel
+					hint={activeHint}
+					onApply={handleApplyHint}
+					onDismiss={handleDismissHint}
+				/>
+			{/if}
 			<NumberPad
 				onNumber={handleNumber}
 				onErase={handleErase}

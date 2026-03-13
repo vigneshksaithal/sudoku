@@ -13,3 +13,34 @@ export type CellState = {
 export type NotesBoard = SvelteSet<number>[][]
 
 export type HintCell = { row: number; col: number; value: number }
+
+export type TechniqueType =
+    | 'naked-single'
+    | 'hidden-single'
+    | 'naked-pair'
+    | 'hidden-pair'
+    | 'pointing-pair'
+    | 'box-line-reduction'
+
+export type TechniqueDifficulty = 'easy' | 'medium' | 'hard'
+
+export type TechniqueAction = 'placement' | 'elimination'
+
+export type TechniqueHint = {
+    technique: TechniqueType
+    difficulty: TechniqueDifficulty
+    title: string
+    description: string
+    primaryCells: ReadonlyArray<readonly [number, number]>
+    secondaryCells: ReadonlyArray<readonly [number, number]>
+    action: TechniqueAction
+    digit: number
+    eliminations?: ReadonlyArray<{ row: number; col: number; digits: number[] }>
+}
+
+export type CandidateBoard = ReadonlyArray<ReadonlyArray<ReadonlySet<number>>>
+
+export type TechniqueHighlight = {
+    primaryCells: ReadonlyArray<readonly [number, number]>
+    secondaryCells: ReadonlyArray<readonly [number, number]>
+}
