@@ -108,27 +108,29 @@
                         : "text-blue-600 dark:text-blue-400",
                     // Base background — overridden by selection/highlight below
                     !isSelected(selection, r, c) &&
+                        !(highlightDigit !== null && cell.value === highlightDigit) &&
                         cell.isGiven &&
                         "bg-neutral-100 dark:bg-neutral-700",
                     !isSelected(selection, r, c) &&
+                        !(highlightDigit !== null && cell.value === highlightDigit) &&
                         !cell.isGiven &&
                         "bg-white dark:bg-neutral-800",
                     !isSelected(selection, r, c) &&
                         highlightDigit !== null &&
                         cell.value === highlightDigit &&
-                        "bg-blue-100 dark:bg-blue-900/30",
+                        "bg-blue-200 dark:bg-blue-700/50",
                     !isSelected(selection, r, c) &&
                         highlightDigit !== null &&
                         cell.value === 0 &&
                         notesBoard[r]?.[c]?.has(highlightDigit) &&
-                        "bg-yellow-100 dark:bg-yellow-900/30",
+                        "bg-yellow-200 dark:bg-yellow-700/50",
                     !isSelected(selection, r, c) &&
                         cell.hasConflict &&
                         "bg-red-50 dark:bg-red-900/30",
                     cell.hasConflict && "text-red-600 dark:text-red-400",
                     // Selection highlight wins over base backgrounds
                     isSelected(selection, r, c) &&
-                        "bg-blue-200 dark:bg-blue-700/60",
+                        "bg-blue-300 dark:bg-blue-600/70",
                     // Secondary technique highlight (lower priority than primary)
                     isSecondaryCell(r, c) &&
                         !cell.hasConflict &&
