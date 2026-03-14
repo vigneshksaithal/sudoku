@@ -17,27 +17,27 @@
         "test:watch": "vitest"
     },
     "dependencies": {
-        "@devvit/web": "0.12.13",
-        "@hono/node-server": "^1.19.9",
+        "@devvit/web": "^0.12.14",
+        "@hono/node-server": "^1.19.11",
         "@tailwindcss/vite": "^4.2.1",
-        "devvit": "0.12.13",
-        "hono": "^4.12.3",
+        "devvit": "^0.12.14",
+        "hono": "^4.12.7",
         "tailwindcss": "^4.2.1"
     },
     "devDependencies": {
-        "@devvit/start": "0.12.13",
-        "@devvit/test": "^0.12.13",
+        "@devvit/start": "^0.12.14",
+        "@devvit/test": "^0.12.14",
         "@sveltejs/vite-plugin-svelte": "^7.0.0",
         "@types/jsdom": "^28.0.0",
         "concurrently": "^9.2.1",
         "dotenv-cli": "^11.0.0",
-        "fast-check": "^4.5.3",
+        "fast-check": "^4.6.0",
         "jsdom": "^28.1.0",
-        "svelte": "^5.53.5",
-        "svelte-check": "^4.4.4",
+        "svelte": "^5.53.11",
+        "svelte-check": "^4.4.5",
         "typescript": "^5.9.3",
-        "vite": "8.0.0-beta.16",
-        "vitest": "^4.0.18"
+        "vite": "^8.0.0",
+        "vitest": "^4.1.0"
     },
     "packageManager": "bun@1.1.34"
 }
