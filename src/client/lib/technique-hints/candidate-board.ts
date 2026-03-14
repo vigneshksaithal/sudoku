@@ -1,4 +1,4 @@
-import type { CellState, CandidateBoard } from '../types'
+import type { CellState, CandidateBoard, NotesBoard } from '../types'
 
 const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 
@@ -26,11 +26,16 @@ const collectPeerValues = (board: CellState[][], r: number, c: number): Set<numb
     return used
 }
 
-export const buildCandidateBoard = (board: CellState[][]): CandidateBoard =>
+export const buildCandidateBoard = (board: CellState[][], notesBoard?: NotesBoard): CandidateBoard =>
     board.map((row, r) =>
         row.map((cell, c) => {
             if (cell.value !== 0) return new Set<number>()
             const used = collectPeerValues(board, r, c)
-            return new Set(DIGITS.filter((d) => !used.has(d)))
+            const computed = new Set(DIGITS.filter((d) => !used.has(d)))
+            const notes = notesBoard?.[r]?.[c]
+            if (notes && notes.size > 0) {
+                return new Set([...computed].filter((d) => notes.has(d)))
+            }
+            return computed
         })
     )

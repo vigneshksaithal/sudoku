@@ -272,7 +272,7 @@
 		const solutionStr = solutions[difficulty];
 		if (!solutionStr) return;
 		const solutionFlat = Array.from(solutionStr).map(Number);
-		const candidates = buildCandidateBoard(board);
+		const candidates = buildCandidateBoard(board, notesBoard);
 		const hint = findTechniqueHint(board, candidates, solutionFlat);
 		if (hint === null) return;
 		activeHint = hint;
