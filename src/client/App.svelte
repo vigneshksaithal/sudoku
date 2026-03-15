@@ -4,6 +4,7 @@
 	import NumberPad from "./components/NumberPad.svelte";
 	import {
 		boardToString,
+		countDigitPlacements,
 		isComplete,
 		parseBoard,
 		updateConflicts,
@@ -24,7 +25,10 @@
 		toggleSelection,
 	} from "./lib/selection-utils";
 	import { applyAutoNotes, applyMultiErase } from "./lib/app-logic";
-	import { DIFFICULTY_STORAGE_KEY } from "./lib/constants";
+	import {
+		DIFFICULTY_STORAGE_KEY,
+		PAD_ALIGNMENT_STORAGE_KEY,
+	} from "./lib/constants";
 	import HintPanel from "./components/HintPanel.svelte";
 	import { findTechniqueHint } from "./lib/technique-hints/technique-engine";
 	import { buildCandidateBoard } from "./lib/technique-hints/candidate-board";
@@ -78,13 +82,8 @@
 	let activeHint: TechniqueHint | null = $state(null);
 	let undoStack: UndoStack = $state([]);
 
-	const MAX_HINTS = 3;
-	const hintsRemaining = $derived(MAX_HINTS - hintsUsed);
 	const hintsDisabled = $derived(
-		hintsRemaining === 0 ||
-			screen !== "playing" ||
-			solutions === null ||
-			activeHint !== null,
+		screen !== "playing" || solutions === null || activeHint !== null,
 	);
 	const techniqueHighlight = $derived.by(() => {
 		const hint: TechniqueHint | null = activeHint;
@@ -98,12 +97,31 @@
 		undoStack.length === 0 || screen !== "playing",
 	);
 
-	const highlightDigit = $derived(
-		selection.focusCell
-			? board[selection.focusCell[0]]?.[selection.focusCell[1]]?.value ||
-					null
-			: null,
+	let padAlignment: "left" | "right" = $state(
+		(() => {
+			try {
+				const stored = localStorage.getItem(PAD_ALIGNMENT_STORAGE_KEY);
+				return stored === "right" ? "right" : "left";
+			} catch {
+				return "left";
+			}
+		})(),
 	);
+
+	const digitCounts: ReadonlyMap<number, number> = $derived(
+		countDigitPlacements(board),
+	);
+
+	const handleToggleAlignment = (): void => {
+		padAlignment = padAlignment === "left" ? "right" : "left";
+		try {
+			localStorage.setItem(PAD_ALIGNMENT_STORAGE_KEY, padAlignment);
+		} catch {
+			// localStorage unavailable — preference not persisted
+		}
+	};
+
+	let highlightDigit: number | null = $state(null);
 
 	const fetchPuzzles = async (): Promise<void> => {
 		loading = true;
@@ -118,6 +136,7 @@
 			if (puzzles) {
 				board = updateConflicts(parseBoard(puzzles[difficulty]));
 				selection = EMPTY_SELECTION;
+				highlightDigit = null;
 				validationMessage = null;
 				notesBoard = createEmptyNotesBoard();
 				notesMode = false;
@@ -149,6 +168,10 @@
 
 	const handleCellSelect = (row: number, col: number): void => {
 		selection = setSelection(row, col);
+		const cellValue = board[row]?.[col]?.value;
+		if (cellValue !== undefined && cellValue > 0) {
+			highlightDigit = cellValue;
+		}
 	};
 
 	const handleCellExtend = (row: number, col: number): void => {
@@ -172,6 +195,7 @@
 		// Escape: clear selection
 		if (key === "Escape") {
 			selection = clearSelection();
+			highlightDigit = null;
 			return;
 		}
 
@@ -211,6 +235,7 @@
 	};
 
 	const handleNumber = (num: number): void => {
+		highlightDigit = num;
 		undoStack = pushSnapshot(
 			undoStack,
 			captureSnapshot(board, notesBoard, hintsUsed),
@@ -267,8 +292,7 @@
 	};
 
 	const handleHint = (): void => {
-		if (solutions === null || hintsUsed >= MAX_HINTS || activeHint !== null)
-			return;
+		if (solutions === null || activeHint !== null) return;
 		const solutionStr = solutions[difficulty];
 		if (!solutionStr) return;
 		const solutionFlat = Array.from(solutionStr).map(Number);
@@ -345,6 +369,7 @@
 		difficulty = next;
 		board = updateConflicts(parseBoard(puzzles[next]));
 		selection = EMPTY_SELECTION;
+		highlightDigit = null;
 		validationMessage = null;
 		notesBoard = createEmptyNotesBoard();
 		notesMode = false;
@@ -356,6 +381,8 @@
 
 	const returnToPreview = (): void => {
 		localStorage.removeItem(DIFFICULTY_STORAGE_KEY);
+		// Close the expanded mode webview — returns user to the inline preview
+		window.parent.postMessage({ type: "devvit-close-expanded" }, "*");
 	};
 </script>
 
@@ -422,10 +449,12 @@
 					notesMode = !notesMode;
 				}}
 				onHint={handleHint}
-				{hintsRemaining}
 				{hintsDisabled}
 				onUndo={handleUndo}
 				{undoDisabled}
+				{digitCounts}
+				{padAlignment}
+				onToggleAlignment={handleToggleAlignment}
 			/>
 			{#if validating}
 				<p class="text-sm text-neutral-500">Checking…</p>

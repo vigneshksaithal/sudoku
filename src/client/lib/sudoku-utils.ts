@@ -43,3 +43,17 @@ export const updateConflicts = (board: CellState[][]): CellState[][] =>
 /** True when every cell is filled (non-zero) and no cell has a conflict. */
 export const isComplete = (board: CellState[][]): boolean =>
     board.every((row) => row.every((cell) => cell.value !== 0 && !cell.hasConflict))
+
+/** Count how many times each digit 1–9 appears on the board. Does not mutate input. */
+export const countDigitPlacements = (board: CellState[][]): ReadonlyMap<number, number> => {
+    const counts = new Map<number, number>()
+    for (let d = 1; d <= 9; d++) counts.set(d, 0)
+    for (const row of board) {
+        for (const cell of row) {
+            if (cell.value >= 1 && cell.value <= 9) {
+                counts.set(cell.value, (counts.get(cell.value) ?? 0) + 1)
+            }
+        }
+    }
+    return counts
+}

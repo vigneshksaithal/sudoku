@@ -1,7 +1,7 @@
 import * as fc from 'fast-check'
 import { describe, it } from 'vitest'
 
-import { boardToString, hasConflict, isComplete, parseBoard, updateConflicts } from '../sudoku-utils'
+import { boardToString, countDigitPlacements, hasConflict, isComplete, parseBoard, updateConflicts } from '../sudoku-utils'
 import type { CellState } from '../types'
 
 /** Arbitrary: a single digit 0–9 */
@@ -281,6 +281,65 @@ describe('Property 9: Completion detection', () => {
                 return result === (allFilled && noConflicts)
             }),
             { numRuns: 100 }
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
+// Property 5: countDigitPlacements accuracy
+// ---------------------------------------------------------------------------
+
+describe('Property 5: countDigitPlacements accuracy', () => {
+    /**
+     * Feature: numberpad-ui-overhaul, Property 5: countDigitPlacements accuracy
+     * For any valid 9×9 CellState board, each count equals board.flat().filter(c => c.value === d).length
+     * Validates: Requirements 5.1, 5.2
+     */
+    it('each digit count matches flat-filter count', () => {
+        fc.assert(
+            fc.property(cellStateBoardArb, (board) => {
+                const counts = countDigitPlacements(board)
+                // Must have exactly 9 keys: 1-9
+                if (counts.size !== 9) return false
+                for (let d = 1; d <= 9; d++) {
+                    if (!counts.has(d)) return false
+                    const expected = board.flat().filter((c) => c.value === d).length
+                    if (counts.get(d) !== expected) return false
+                }
+                return true
+            }),
+            { numRuns: 200 }
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
+// Property 6: countDigitPlacements no mutation
+// ---------------------------------------------------------------------------
+
+describe('Property 6: countDigitPlacements no mutation', () => {
+    /**
+     * Feature: numberpad-ui-overhaul, Property 6: countDigitPlacements no mutation
+     * For any valid 9×9 CellState board, calling countDigitPlacements does not modify any cell
+     * Validates: Requirement 5.3
+     */
+    it('does not mutate the input board', () => {
+        fc.assert(
+            fc.property(cellStateBoardArb, (board) => {
+                // Deep-clone the board before calling the function
+                const snapshot = board.map((row) => row.map((cell) => ({ ...cell })))
+                countDigitPlacements(board)
+                // Every cell must be identical to the snapshot
+                return board.every((row, r) =>
+                    row.every(
+                        (cell, c) =>
+                            cell.value === snapshot[r]![c]!.value &&
+                            cell.isGiven === snapshot[r]![c]!.isGiven &&
+                            cell.hasConflict === snapshot[r]![c]!.hasConflict
+                    )
+                )
+            }),
+            { numRuns: 200 }
         )
     })
 })

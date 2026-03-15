@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { boardToString, hasConflict, isComplete, parseBoard, updateConflicts } from '../sudoku-utils'
+import { boardToString, countDigitPlacements, hasConflict, isComplete, parseBoard, updateConflicts } from '../sudoku-utils'
 import type { CellState } from '../types'
 
 // --- parseBoard ---
@@ -146,5 +146,89 @@ describe('isComplete', () => {
         const str = '554678912672195348198342567859761423426853791713924856961537284287419635345286179'
         const board = updateConflicts(parseBoard(str))
         expect(isComplete(board)).toBe(false)
+    })
+})
+
+// --- countDigitPlacements ---
+
+describe('countDigitPlacements', () => {
+    const makeBoard = (values: number[][]): CellState[][] =>
+        values.map((row) =>
+            row.map((value) => ({ value, isGiven: value !== 0, hasConflict: false }))
+        )
+
+    const emptyBoard = (): CellState[][] =>
+        makeBoard(Array.from({ length: 9 }, () => Array(9).fill(0)))
+
+    test('empty board returns 0 for all digits', () => {
+        const board = emptyBoard()
+        const counts = countDigitPlacements(board)
+
+        for (let d = 1; d <= 9; d++) {
+            expect(counts.get(d)).toBe(0)
+        }
+    })
+
+    test('full valid board returns 9 for all digits', () => {
+        // Valid completed sudoku board
+        const str = '534678912672195348198342567859761423426853791713924856961537284287419635345286179'
+        const board = parseBoard(str)
+        const counts = countDigitPlacements(board)
+
+        for (let d = 1; d <= 9; d++) {
+            expect(counts.get(d)).toBe(9)
+        }
+    })
+
+    test('partial board returns correct counts', () => {
+        // Place two 1s, three 2s, one 3, rest zeros
+        const values = Array.from({ length: 9 }, () => Array(9).fill(0))
+        values[0]![0] = 1
+        values[0]![1] = 1
+        values[1]![0] = 2
+        values[1]![1] = 2
+        values[1]![2] = 2
+        values[2]![0] = 3
+        const board = makeBoard(values)
+        const counts = countDigitPlacements(board)
+
+        expect(counts.get(1)).toBe(2)
+        expect(counts.get(2)).toBe(3)
+        expect(counts.get(3)).toBe(1)
+        expect(counts.get(4)).toBe(0)
+    })
+
+    test('single digit placed returns 1 for that digit, 0 for others', () => {
+        const values = Array.from({ length: 9 }, () => Array(9).fill(0))
+        values[4]![4] = 7
+        const board = makeBoard(values)
+        const counts = countDigitPlacements(board)
+
+        expect(counts.get(7)).toBe(1)
+        for (let d = 1; d <= 9; d++) {
+            if (d !== 7) expect(counts.get(d)).toBe(0)
+        }
+    })
+
+    test('returns Map with exactly 9 keys (1-9)', () => {
+        const board = emptyBoard()
+        const counts = countDigitPlacements(board)
+
+        expect(counts.size).toBe(9)
+        for (let d = 1; d <= 9; d++) {
+            expect(counts.has(d)).toBe(true)
+        }
+    })
+
+    test('does not mutate input board', () => {
+        const board = emptyBoard()
+        const snapshot = board.map((row) => row.map((cell) => ({ ...cell })))
+        countDigitPlacements(board)
+
+        board.forEach((row, r) => {
+            row.forEach((cell, c) => {
+                expect(cell).toEqual(snapshot[r]![c])
+            })
+        })
     })
 })

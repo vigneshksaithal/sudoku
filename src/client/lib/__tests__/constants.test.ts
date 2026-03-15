@@ -1,11 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
-import { DIFFICULTY_STORAGE_KEY, VALID_DIFFICULTIES, parseDifficulty } from '../constants'
+import { DIFFICULTY_STORAGE_KEY, PAD_ALIGNMENT_STORAGE_KEY, VALID_DIFFICULTIES, parseDifficulty } from '../constants'
 import type { Difficulty } from '../types'
 
 describe('DIFFICULTY_STORAGE_KEY', () => {
     it('is the string sudoku-difficulty', () => {
         expect(DIFFICULTY_STORAGE_KEY).toBe('sudoku-difficulty')
+    })
+})
+
+describe('PAD_ALIGNMENT_STORAGE_KEY', () => {
+    it('is the string sudoku-pad-alignment', () => {
+        expect(PAD_ALIGNMENT_STORAGE_KEY).toBe('sudoku-pad-alignment')
     })
 })
 
