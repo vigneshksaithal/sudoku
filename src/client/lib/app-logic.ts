@@ -1,6 +1,7 @@
 import { clearCellNotes, toggleNote } from './notes-utils'
 import { parseKey } from './selection-utils'
 import type { Selection } from './selection-utils'
+import { buildCandidateBoard } from './technique-hints/candidate-board'
 import type { CellState, NotesBoard } from './types'
 
 /**
@@ -44,4 +45,77 @@ export const applyMultiErase = (
         cleared.push([r, c] as const)
     }
     return cleared
+}
+
+/**
+ * Compute valid candidates for every empty non-given cell and write them
+ * into `notesBoard`, replacing any existing notes. Given cells and filled
+ * cells are left untouched. Mutates `notesBoard` in place.
+ */
+export const applyAutoCandidates = (
+    board: CellState[][],
+    notesBoard: NotesBoard,
+): void => {
+    const candidates = buildCandidateBoard(board)
+
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const cell = board[r]?.[c]
+            if (!cell || cell.isGiven || cell.value !== 0) continue
+
+            const cellNotes = notesBoard[r]?.[c]
+            if (!cellNotes) continue
+
+            cellNotes.clear()
+            for (const digit of candidates[r]![c]!) {
+                cellNotes.add(digit)
+            }
+        }
+    }
+}
+
+
+/**
+ * Check whether every empty non-given cell's notes exactly match the
+ * constraint-based candidates. Returns true when auto-candidates are
+ * "active" (i.e. a second press should clear them).
+ */
+export const hasAutoCandidates = (
+    board: CellState[][],
+    notesBoard: NotesBoard,
+): boolean => {
+    const candidates = buildCandidateBoard(board)
+
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const cell = board[r]?.[c]
+            if (!cell || cell.isGiven || cell.value !== 0) continue
+
+            const cellNotes = notesBoard[r]?.[c]
+            const expected = candidates[r]![c]!
+            if (!cellNotes || cellNotes.size !== expected.size) return false
+            for (const d of expected) {
+                if (!cellNotes.has(d)) return false
+            }
+        }
+    }
+    // No empty cells means nothing to toggle off — treat as "active"
+    return true
+}
+
+/**
+ * Clear notes on every empty non-given cell. Given cells and filled
+ * cells are left untouched. Mutates `notesBoard` in place.
+ */
+export const clearAutoCandidates = (
+    board: CellState[][],
+    notesBoard: NotesBoard,
+): void => {
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const cell = board[r]?.[c]
+            if (!cell || cell.isGiven || cell.value !== 0) continue
+            notesBoard[r]?.[c]?.clear()
+        }
+    }
 }

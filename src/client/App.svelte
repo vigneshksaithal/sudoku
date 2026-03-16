@@ -24,10 +24,17 @@
 		setSelection,
 		toggleSelection,
 	} from "./lib/selection-utils";
-	import { applyAutoNotes, applyMultiErase } from "./lib/app-logic";
+	import {
+		applyAutoNotes,
+		applyMultiErase,
+		applyAutoCandidates,
+		hasAutoCandidates,
+		clearAutoCandidates,
+	} from "./lib/app-logic";
 	import {
 		DIFFICULTY_STORAGE_KEY,
 		PAD_ALIGNMENT_STORAGE_KEY,
+		getNextDifficulty,
 	} from "./lib/constants";
 	import HintPanel from "./components/HintPanel.svelte";
 	import { findTechniqueHint } from "./lib/technique-hints/technique-engine";
@@ -164,6 +171,19 @@
 		board = updateConflicts(snapshot.board);
 		notesBoard = restoreNotesBoard(snapshot.notes);
 		hintsUsed = snapshot.hintsUsed;
+	};
+
+	const handleAutoCandidate = (): void => {
+		if (screen !== "playing") return;
+		undoStack = pushSnapshot(
+			undoStack,
+			captureSnapshot(board, notesBoard, hintsUsed),
+		);
+		if (hasAutoCandidates(board, notesBoard)) {
+			clearAutoCandidates(board, notesBoard);
+		} else {
+			applyAutoCandidates(board, notesBoard);
+		}
 	};
 
 	const handleCellSelect = (row: number, col: number): void => {
@@ -366,6 +386,11 @@
 
 	const changeDifficulty = (next: Difficulty): void => {
 		if (next === difficulty || puzzles === null) return;
+		try {
+			localStorage.setItem(DIFFICULTY_STORAGE_KEY, next);
+		} catch {
+			// localStorage unavailable — preference not persisted
+		}
 		difficulty = next;
 		board = updateConflicts(parseBoard(puzzles[next]));
 		selection = EMPTY_SELECTION;
@@ -379,11 +404,7 @@
 		screen = "playing";
 	};
 
-	const returnToPreview = (): void => {
-		localStorage.removeItem(DIFFICULTY_STORAGE_KEY);
-		// Close the expanded mode webview — returns user to the inline preview
-		window.parent.postMessage({ type: "devvit-close-expanded" }, "*");
-	};
+	const nextDifficulty = $derived(getNextDifficulty(difficulty));
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
@@ -452,6 +473,8 @@
 				{hintsDisabled}
 				onUndo={handleUndo}
 				{undoDisabled}
+				onAutoCandidate={handleAutoCandidate}
+				autoCandidateDisabled={screen !== "playing"}
 				{digitCounts}
 				{padAlignment}
 				onToggleAlignment={handleToggleAlignment}
@@ -473,9 +496,9 @@
 			</p>
 			<button
 				class="px-5 py-3 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]"
-				onclick={returnToPreview}
+				onclick={() => changeDifficulty(nextDifficulty)}
 			>
-				Try another difficulty
+				Try {nextDifficulty}
 			</button>
 		</div>
 	{/if}

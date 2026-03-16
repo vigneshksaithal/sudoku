@@ -16,3 +16,12 @@ export const parseDifficulty = (raw: string | null): Difficulty => {
     }
     return 'simple'
 }
+
+export const getNextDifficulty = (difficulty: Difficulty): Difficulty => {
+    const index = VALID_DIFFICULTIES.indexOf(difficulty)
+    const nextIndex = index === -1 || index === VALID_DIFFICULTIES.length - 1
+        ? 0
+        : index + 1
+
+    return VALID_DIFFICULTIES[nextIndex] ?? 'simple'
+}

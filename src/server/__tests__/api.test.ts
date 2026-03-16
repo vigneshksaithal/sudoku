@@ -22,6 +22,17 @@ const seedPuzzles = async (postId: string): Promise<void> => {
     await redis.hSet(`puzzle:${postId}`, fields)
 }
 
+// --- GET /api/ping ---
+
+test('GET /api/ping returns status success with pong message', async () => {
+    const res = await app.request('/api/ping')
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.status).toBe('success')
+    expect(json.data.message).toBe('pong')
+})
+
 // --- GET /api/puzzle ---
 
 test('GET /api/puzzle returns four puzzle strings in data.puzzles', async () => {

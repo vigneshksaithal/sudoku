@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
-import { DIFFICULTY_STORAGE_KEY, PAD_ALIGNMENT_STORAGE_KEY, VALID_DIFFICULTIES, parseDifficulty } from '../constants'
+import {
+    DIFFICULTY_STORAGE_KEY,
+    PAD_ALIGNMENT_STORAGE_KEY,
+    VALID_DIFFICULTIES,
+    getNextDifficulty,
+    parseDifficulty,
+} from '../constants'
 import type { Difficulty } from '../types'
 
 describe('DIFFICULTY_STORAGE_KEY', () => {
@@ -42,6 +48,18 @@ describe('parseDifficulty', () => {
         expect(parseDifficulty('EASY')).toBe('simple')
         expect(parseDifficulty('Simple')).toBe('simple')
         expect(parseDifficulty('medium')).toBe('simple')
+    })
+})
+
+describe('getNextDifficulty', () => {
+    it('returns the next difficulty in sequence', () => {
+        expect(getNextDifficulty('simple')).toBe('easy')
+        expect(getNextDifficulty('easy')).toBe('intermediate')
+        expect(getNextDifficulty('intermediate')).toBe('expert')
+    })
+
+    it('wraps from expert back to simple', () => {
+        expect(getNextDifficulty('expert')).toBe('simple')
     })
 })
 

@@ -10,6 +10,8 @@
         hintsDisabled,
         onUndo,
         undoDisabled,
+        onAutoCandidate,
+        autoCandidateDisabled,
         digitCounts,
         padAlignment,
         onToggleAlignment,
@@ -22,6 +24,8 @@
         hintsDisabled: boolean;
         onUndo: () => void;
         undoDisabled: boolean;
+        onAutoCandidate: () => void;
+        autoCandidateDisabled: boolean;
         digitCounts: ReadonlyMap<number, number>;
         padAlignment: "left" | "right";
         onToggleAlignment: () => void;
@@ -84,6 +88,15 @@
         >
             <span class="text-lg leading-none">💡</span>
             <span class="text-xs">Hint</span>
+        </IconButton>
+        <IconButton
+            onclick={onAutoCandidate}
+            label="Auto-fill candidate notes"
+            variant="default"
+            disabled={autoCandidateDisabled}
+        >
+            <span class="text-lg leading-none">🔢</span>
+            <span class="text-xs">Auto</span>
         </IconButton>
         <IconButton onclick={onErase} label="Erase cell" variant="danger">
             <span class="text-lg leading-none">✕</span>

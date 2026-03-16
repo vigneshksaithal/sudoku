@@ -102,6 +102,14 @@ app.post('/api/validate', async (c) => {
   return c.json({ valid: board === solution })
 })
 
+// --- GET /api/ping ---
+
+const pingHandler = (_c: Context): Response => {
+  return _c.json({ status: 'success', data: { message: 'pong' } })
+}
+
+app.get('/api/ping', pingHandler)
+
 // Only start the server when not in test mode
 if (process.env['NODE_ENV'] !== 'test') {
   serve({ fetch: app.fetch, port: getServerPort(), createServer })
