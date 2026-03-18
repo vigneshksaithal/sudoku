@@ -9,14 +9,14 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 
 import { createPost } from './post'
+import { DIFFICULTIES } from './lib/sudoku'
 
 const HTTP_STATUS_BAD_REQUEST = 400
-const VALID_DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
 
-type ValidDifficulty = (typeof VALID_DIFFICULTIES)[number]
+type ValidDifficulty = (typeof DIFFICULTIES)[number]
 
 const isValidDifficulty = (d: unknown): d is ValidDifficulty =>
-  typeof d === 'string' && (VALID_DIFFICULTIES as readonly string[]).includes(d)
+  typeof d === 'string' && (DIFFICULTIES as readonly string[]).includes(d)
 
 export const app = new Hono()
 
@@ -53,7 +53,7 @@ app.get('/api/puzzle', async (c) => {
   const data = await redis.hGetAll(`puzzle:${postId}`)
   const puzzles: Record<string, string> = {}
   const solutions: Record<string, string> = {}
-  for (const d of VALID_DIFFICULTIES) {
+  for (const d of DIFFICULTIES) {
     const puzzle = data[`${d}:puzzle`]
     if (!puzzle) {
       return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
@@ -104,8 +104,8 @@ app.post('/api/validate', async (c) => {
 
 // --- GET /api/ping ---
 
-const pingHandler = (_c: Context): Response => {
-  return _c.json({ status: 'success', data: { message: 'pong' } })
+const pingHandler = (c: Context): Response => {
+  return c.json({ status: 'success', data: { message: 'pong' } })
 }
 
 app.get('/api/ping', pingHandler)

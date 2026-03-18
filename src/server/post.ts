@@ -1,8 +1,6 @@
 import { context, redis, reddit } from '@devvit/web/server'
 
-import { boardToString, generatePuzzleWithDifficulty } from './lib/sudoku'
-
-const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
+import { DIFFICULTIES, boardToString, generatePuzzleWithDifficulty } from './lib/sudoku'
 
 export const createPost = async (): Promise<{ id: string }> => {
   const { subredditName } = context

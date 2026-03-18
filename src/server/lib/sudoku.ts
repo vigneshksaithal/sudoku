@@ -21,6 +21,8 @@ export type Symmetry = 'none' | 'rotate180' | 'rotate90' | 'mirror' | 'flip'
 
 export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'expert'
 
+export const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
+
 export type SolveStats = Record<LogType, number>
 
 // ─── Index Math ───────────────────────────────────────────────────────────────
@@ -220,103 +222,86 @@ export const onlyPossibilityForCell = (state: SolverState, round: number): boole
     return false
 }
 
-/** Hidden Single in box: candidate appears in only 1 cell within a box → place it.
+// ─── House Cell Generators ────────────────────────────────────────────────────
+
+/** Get the 9 cell indices for a row */
+const getRowCells = (row: number): number[] =>
+    Array.from({ length: 9 }, (_, col) => rowColToCell(row, col))
+
+/** Get the 9 cell indices for a column */
+const getColCells = (col: number): number[] =>
+    Array.from({ length: 9 }, (_, row) => rowColToCell(row, col))
+
+/** Get the 9 cell indices for a box (0–8) */
+const getBoxCells = (box: number): number[] => {
+    const boxRow = Math.floor(box / 3) * 3
+    const boxCol = (box % 3) * 3
+    const cells: number[] = []
+    for (let r = boxRow; r < boxRow + 3; r++)
+        for (let c = boxCol; c < boxCol + 3; c++)
+            cells.push(rowColToCell(r, c))
+    return cells
+}
+
+// ─── Hidden Single (shared logic) ────────────────────────────────────────────
+
+/** Hidden Single in a house: candidate appears in only 1 cell → place it.
  *  Returns true if any placement was made. */
+const hiddenSingleInHouse = (
+    state: SolverState,
+    houseCells: number[],
+    round: number,
+    logType: LogType,
+): boolean => {
+    for (let vi = 0; vi < 9; vi++) {
+        let count = 0
+        let lastCell = -1
+        for (const cell of houseCells) {
+            if (state.solution[cell] !== 0) continue
+            if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
+                count++
+                lastCell = cell
+            }
+        }
+        if (count !== 1 || lastCell === -1) continue
+        const value = vi + 1
+        mark(state, lastCell, round, value)
+        if (state.recordHistory) {
+            state.solveLog = state.solveLog.filter(
+                (e) => !(e.round === round && e.type === 'given' && e.position === lastCell && e.value === value)
+            )
+            state.solveLog.push({ round, type: logType, value, position: lastCell })
+        }
+        return true
+    }
+    return false
+}
+
+/** Hidden Single in box */
 export const onlyValueInSection = (state: SolverState, round: number): boolean => {
     for (let box = 0; box < 9; box++) {
-        const boxRow = Math.floor(box / 3) * 3
-        const boxCol = (box % 3) * 3
-        const cells: number[] = []
-        for (let r = boxRow; r < boxRow + 3; r++)
-            for (let c = boxCol; c < boxCol + 3; c++)
-                cells.push(rowColToCell(r, c))
-
-        for (let vi = 0; vi < 9; vi++) {
-            let count = 0
-            let lastCell = -1
-            for (const cell of cells) {
-                if (state.solution[cell] !== 0) continue
-                if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
-                    count++
-                    lastCell = cell
-                }
-            }
-            if (count !== 1 || lastCell === -1) continue
-            const value = vi + 1
-            mark(state, lastCell, round, value)
-            if (state.recordHistory) {
-                state.solveLog = state.solveLog.filter(
-                    (e) => !(e.round === round && e.type === 'given' && e.position === lastCell && e.value === value)
-                )
-                state.solveLog.push({ round, type: 'hiddenSingleSection', value, position: lastCell })
-            }
-            return true
-        }
+        if (hiddenSingleInHouse(state, getBoxCells(box), round, 'hiddenSingleSection')) return true
     }
     return false
 }
 
-/** Hidden Single in row: candidate appears in only 1 cell within a row → place it.
- *  Returns true if any placement was made. */
+/** Hidden Single in row */
 export const onlyValueInRow = (state: SolverState, round: number): boolean => {
     for (let row = 0; row < 9; row++) {
-        for (let vi = 0; vi < 9; vi++) {
-            let count = 0
-            let lastCell = -1
-            for (let col = 0; col < 9; col++) {
-                const cell = rowColToCell(row, col)
-                if (state.solution[cell] !== 0) continue
-                if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
-                    count++
-                    lastCell = cell
-                }
-            }
-            if (count !== 1 || lastCell === -1) continue
-            const value = vi + 1
-            mark(state, lastCell, round, value)
-            if (state.recordHistory) {
-                state.solveLog = state.solveLog.filter(
-                    (e) => !(e.round === round && e.type === 'given' && e.position === lastCell && e.value === value)
-                )
-                state.solveLog.push({ round, type: 'hiddenSingleRow', value, position: lastCell })
-            }
-            return true
-        }
+        if (hiddenSingleInHouse(state, getRowCells(row), round, 'hiddenSingleRow')) return true
     }
     return false
 }
 
-/** Hidden Single in column: candidate appears in only 1 cell within a column → place it.
- *  Returns true if any placement was made. */
+/** Hidden Single in column */
 export const onlyValueInColumn = (state: SolverState, round: number): boolean => {
     for (let col = 0; col < 9; col++) {
-        for (let vi = 0; vi < 9; vi++) {
-            let count = 0
-            let lastCell = -1
-            for (let row = 0; row < 9; row++) {
-                const cell = rowColToCell(row, col)
-                if (state.solution[cell] !== 0) continue
-                if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
-                    count++
-                    lastCell = cell
-                }
-            }
-            if (count !== 1 || lastCell === -1) continue
-            const value = vi + 1
-            mark(state, lastCell, round, value)
-            if (state.recordHistory) {
-                state.solveLog = state.solveLog.filter(
-                    (e) => !(e.round === round && e.type === 'given' && e.position === lastCell && e.value === value)
-                )
-                state.solveLog.push({ round, type: 'hiddenSingleColumn', value, position: lastCell })
-            }
-            return true
-        }
+        if (hiddenSingleInHouse(state, getColCells(col), round, 'hiddenSingleColumn')) return true
     }
     return false
 }
 
-// ─── Stub Techniques (implemented in later tasks) ────────────────────────────
+// ─── Technique Helpers ────────────────────────────────────────────────────────
 
 /** Get the set of candidate value indices still possible for a cell */
 const getCandidates = (cell: number, possibilities: number[]): number[] => {
@@ -352,114 +337,74 @@ const eliminatePairFromHouse = (
     return eliminated
 }
 
+/** Naked pair detection in a single house. Returns true if any elimination was made. */
+const nakedPairInHouse = (
+    state: SolverState,
+    houseCells: number[],
+    round: number,
+    logType: LogType,
+): boolean => {
+    for (let i = 0; i < houseCells.length; i++) {
+        const cellA = houseCells[i]!
+        if (state.solution[cellA] !== 0) continue
+        const candidatesA = getCandidates(cellA, state.possibilities)
+        if (candidatesA.length !== 2) continue
+        for (let j = i + 1; j < houseCells.length; j++) {
+            const cellB = houseCells[j]!
+            if (state.solution[cellB] !== 0) continue
+            const candidatesB = getCandidates(cellB, state.possibilities)
+            if (candidatesB.length !== 2) continue
+            if (candidatesA[0] !== candidatesB[0] || candidatesA[1] !== candidatesB[1]) continue
+            const [vi1, vi2] = candidatesA as [number, number]
+            if (eliminatePairFromHouse(state, houseCells, cellA, cellB, vi1, vi2, round)) {
+                if (state.recordHistory) {
+                    state.solveLog.push({ round, type: logType, value: 0, position: -1 })
+                }
+                return true
+            }
+        }
+    }
+    return false
+}
+
 /** Naked Pairs in row/col/box: two cells sharing exactly 2 candidates → eliminate from peers */
 export const handleNakedPairs = (state: SolverState, round: number): boolean => {
-    // Rows first (Req 5.5)
     for (let row = 0; row < 9; row++) {
-        const cells = Array.from({ length: 9 }, (_, c) => rowColToCell(row, c))
-        for (let i = 0; i < cells.length; i++) {
-            const cellA = cells[i]!
-            if (state.solution[cellA] !== 0) continue
-            const candidatesA = getCandidates(cellA, state.possibilities)
-            if (candidatesA.length !== 2) continue
-            for (let j = i + 1; j < cells.length; j++) {
-                const cellB = cells[j]!
-                if (state.solution[cellB] !== 0) continue
-                const candidatesB = getCandidates(cellB, state.possibilities)
-                if (candidatesB.length !== 2) continue
-                if (candidatesA[0] !== candidatesB[0] || candidatesA[1] !== candidatesB[1]) continue
-                const [vi1, vi2] = candidatesA as [number, number]
-                if (eliminatePairFromHouse(state, cells, cellA, cellB, vi1, vi2, round)) {
-                    if (state.recordHistory) {
-                        state.solveLog.push({ round, type: 'nakedPairRow', value: 0, position: -1 })
-                    }
-                    return true
-                }
-            }
-        }
+        if (nakedPairInHouse(state, getRowCells(row), round, 'nakedPairRow')) return true
     }
-
-    // Columns (Req 5.5)
     for (let col = 0; col < 9; col++) {
-        const cells = Array.from({ length: 9 }, (_, r) => rowColToCell(r, col))
-        for (let i = 0; i < cells.length; i++) {
-            const cellA = cells[i]!
-            if (state.solution[cellA] !== 0) continue
-            const candidatesA = getCandidates(cellA, state.possibilities)
-            if (candidatesA.length !== 2) continue
-            for (let j = i + 1; j < cells.length; j++) {
-                const cellB = cells[j]!
-                if (state.solution[cellB] !== 0) continue
-                const candidatesB = getCandidates(cellB, state.possibilities)
-                if (candidatesB.length !== 2) continue
-                if (candidatesA[0] !== candidatesB[0] || candidatesA[1] !== candidatesB[1]) continue
-                const [vi1, vi2] = candidatesA as [number, number]
-                if (eliminatePairFromHouse(state, cells, cellA, cellB, vi1, vi2, round)) {
-                    if (state.recordHistory) {
-                        state.solveLog.push({ round, type: 'nakedPairColumn', value: 0, position: -1 })
-                    }
-                    return true
-                }
-            }
-        }
+        if (nakedPairInHouse(state, getColCells(col), round, 'nakedPairColumn')) return true
     }
-
-    // Boxes (Req 5.5)
     for (let box = 0; box < 9; box++) {
-        const boxRow = Math.floor(box / 3) * 3
-        const boxCol = (box % 3) * 3
-        const cells: number[] = []
-        for (let r = boxRow; r < boxRow + 3; r++)
-            for (let c = boxCol; c < boxCol + 3; c++)
-                cells.push(rowColToCell(r, c))
-        for (let i = 0; i < cells.length; i++) {
-            const cellA = cells[i]!
-            if (state.solution[cellA] !== 0) continue
-            const candidatesA = getCandidates(cellA, state.possibilities)
-            if (candidatesA.length !== 2) continue
-            for (let j = i + 1; j < cells.length; j++) {
-                const cellB = cells[j]!
-                if (state.solution[cellB] !== 0) continue
-                const candidatesB = getCandidates(cellB, state.possibilities)
-                if (candidatesB.length !== 2) continue
-                if (candidatesA[0] !== candidatesB[0] || candidatesA[1] !== candidatesB[1]) continue
-                const [vi1, vi2] = candidatesA as [number, number]
-                if (eliminatePairFromHouse(state, cells, cellA, cellB, vi1, vi2, round)) {
-                    if (state.recordHistory) {
-                        state.solveLog.push({ round, type: 'nakedPairSection', value: 0, position: -1 })
-                    }
-                    return true
-                }
-            }
-        }
+        if (nakedPairInHouse(state, getBoxCells(box), round, 'nakedPairSection')) return true
     }
-
     return false
 }
 
-/** Pointing Pairs/Triples — row: candidate confined to one row in a box → eliminate from rest of row */
-export const pointingRowReduction = (state: SolverState, round: number): boolean => {
+/** Pointing Pairs/Triples: candidate confined to one line in a box → eliminate from rest of that line.
+ *  `getLine` extracts the row or column index, `getLineCells` returns cells outside the box on that line. */
+const pointingReduction = (
+    state: SolverState,
+    round: number,
+    getLine: (cell: number) => number,
+    getOutsideBoxCells: (line: number, boxStart: number) => number[],
+    logType: LogType,
+): boolean => {
     for (let box = 0; box < 9; box++) {
-        const boxStartRow = Math.floor(box / 3) * 3
-        const boxStartCol = (box % 3) * 3
+        const boxCells = getBoxCells(box)
         for (let vi = 0; vi < 9; vi++) {
-            // Collect unsolved box cells that still have this candidate
-            const cells: number[] = []
-            for (let r = boxStartRow; r < boxStartRow + 3; r++)
-                for (let c = boxStartCol; c < boxStartCol + 3; c++) {
-                    const cell = rowColToCell(r, c)
-                    if (state.solution[cell] === 0 && state.possibilities[possibilityIndex(vi, cell)] === 0)
-                        cells.push(cell)
-                }
+            const cells = boxCells.filter(
+                (cell) => state.solution[cell] === 0 && state.possibilities[possibilityIndex(vi, cell)] === 0
+            )
             if (cells.length < 2) continue
-            // Check all candidate cells share the same row
-            const row = cellToRow(cells[0]!)
-            if (!cells.every((c) => cellToRow(c) === row)) continue
-            // Eliminate from rest of that row outside the box
+            const line = getLine(cells[0]!)
+            if (!cells.every((c) => getLine(c) === line)) continue
+            const boxStart = getLine === cellToRow
+                ? (box % 3) * 3   // boxStartCol
+                : Math.floor(box / 3) * 3  // boxStartRow
+            const outsideCells = getOutsideBoxCells(line, boxStart)
             let eliminated = false
-            for (let col = 0; col < 9; col++) {
-                if (col >= boxStartCol && col < boxStartCol + 3) continue
-                const cell = rowColToCell(row, col)
+            for (const cell of outsideCells) {
                 if (state.solution[cell] !== 0) continue
                 if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
                     state.possibilities[possibilityIndex(vi, cell)] = round
@@ -468,7 +413,7 @@ export const pointingRowReduction = (state: SolverState, round: number): boolean
             }
             if (eliminated) {
                 if (state.recordHistory)
-                    state.solveLog.push({ round, type: 'pointingPairTripleRow', value: vi + 1, position: -1 })
+                    state.solveLog.push({ round, type: logType, value: vi + 1, position: -1 })
                 return true
             }
         }
@@ -476,29 +421,59 @@ export const pointingRowReduction = (state: SolverState, round: number): boolean
     return false
 }
 
-/** Pointing Pairs/Triples — column: candidate confined to one column in a box → eliminate from rest of column */
-export const pointingColumnReduction = (state: SolverState, round: number): boolean => {
-    for (let box = 0; box < 9; box++) {
-        const boxStartRow = Math.floor(box / 3) * 3
-        const boxStartCol = (box % 3) * 3
+/** Cells in a row outside a box's column band */
+const rowCellsOutsideBox = (row: number, boxStartCol: number): number[] => {
+    const cells: number[] = []
+    for (let col = 0; col < 9; col++) {
+        if (col >= boxStartCol && col < boxStartCol + 3) continue
+        cells.push(rowColToCell(row, col))
+    }
+    return cells
+}
+
+/** Cells in a column outside a box's row band */
+const colCellsOutsideBox = (col: number, boxStartRow: number): number[] => {
+    const cells: number[] = []
+    for (let row = 0; row < 9; row++) {
+        if (row >= boxStartRow && row < boxStartRow + 3) continue
+        cells.push(rowColToCell(row, col))
+    }
+    return cells
+}
+
+/** Pointing Pairs/Triples — row */
+export const pointingRowReduction = (state: SolverState, round: number): boolean =>
+    pointingReduction(state, round, cellToRow, rowCellsOutsideBox, 'pointingPairTripleRow')
+
+/** Pointing Pairs/Triples — column */
+export const pointingColumnReduction = (state: SolverState, round: number): boolean =>
+    pointingReduction(state, round, cellToCol, colCellsOutsideBox, 'pointingPairTripleColumn')
+
+/** Box/Line Reduction: candidate confined to one box in a line → eliminate from rest of that box.
+ *  `getLineCells` returns the 9 cells for a line, `getLine` extracts the line index from a cell,
+ *  `getBoxExcludingLine` returns box cells not on the given line. */
+const boxLineReduction = (
+    state: SolverState,
+    round: number,
+    getLineCells: (index: number) => number[],
+    getLine: (cell: number) => number,
+    logType: LogType,
+): boolean => {
+    for (let lineIdx = 0; lineIdx < 9; lineIdx++) {
+        const lineCells = getLineCells(lineIdx)
         for (let vi = 0; vi < 9; vi++) {
-            // Collect unsolved box cells that still have this candidate
-            const cells: number[] = []
-            for (let r = boxStartRow; r < boxStartRow + 3; r++)
-                for (let c = boxStartCol; c < boxStartCol + 3; c++) {
-                    const cell = rowColToCell(r, c)
-                    if (state.solution[cell] === 0 && state.possibilities[possibilityIndex(vi, cell)] === 0)
-                        cells.push(cell)
-                }
+            const cells = lineCells.filter(
+                (cell) => state.solution[cell] === 0 && state.possibilities[possibilityIndex(vi, cell)] === 0
+            )
             if (cells.length < 2) continue
-            // Check all candidate cells share the same column
-            const col = cellToCol(cells[0]!)
-            if (!cells.every((c) => cellToCol(c) === col)) continue
-            // Eliminate from rest of that column outside the box
+            const box = cellToBox(cells[0]!)
+            if (!cells.every((c) => cellToBox(c) === box)) continue
+            // Eliminate from rest of that box outside this line
+            const boxCells = getBoxCells(box)
+            const line = getLine(cells[0]!)
             let eliminated = false
-            for (let row = 0; row < 9; row++) {
-                if (row >= boxStartRow && row < boxStartRow + 3) continue
-                const cell = rowColToCell(row, col)
+            for (const cell of boxCells) {
+                if (getLine(cell) === line) continue
                 if (state.solution[cell] !== 0) continue
                 if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
                     state.possibilities[possibilityIndex(vi, cell)] = round
@@ -507,7 +482,7 @@ export const pointingColumnReduction = (state: SolverState, round: number): bool
             }
             if (eliminated) {
                 if (state.recordHistory)
-                    state.solveLog.push({ round, type: 'pointingPairTripleColumn', value: vi + 1, position: -1 })
+                    state.solveLog.push({ round, type: logType, value: vi + 1, position: -1 })
                 return true
             }
         }
@@ -515,85 +490,13 @@ export const pointingColumnReduction = (state: SolverState, round: number): bool
     return false
 }
 
-/** Box/Line Reduction — row: candidate confined to one box in a row → eliminate from rest of that box */
-export const rowBoxReduction = (state: SolverState, round: number): boolean => {
-    for (let row = 0; row < 9; row++) {
-        for (let vi = 0; vi < 9; vi++) {
-            // Collect unsolved row cells that still have this candidate
-            const cells: number[] = []
-            for (let col = 0; col < 9; col++) {
-                const cell = rowColToCell(row, col)
-                if (state.solution[cell] === 0 && state.possibilities[possibilityIndex(vi, cell)] === 0)
-                    cells.push(cell)
-            }
-            if (cells.length < 2) continue
-            // Check all candidate cells share the same box
-            const box = cellToBox(cells[0]!)
-            if (!cells.every((c) => cellToBox(c) === box)) continue
-            // Eliminate from rest of that box outside the row
-            const boxStartRow = Math.floor(box / 3) * 3
-            const boxStartCol = (box % 3) * 3
-            let eliminated = false
-            for (let r = boxStartRow; r < boxStartRow + 3; r++) {
-                if (r === row) continue
-                for (let col = boxStartCol; col < boxStartCol + 3; col++) {
-                    const cell = rowColToCell(r, col)
-                    if (state.solution[cell] !== 0) continue
-                    if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
-                        state.possibilities[possibilityIndex(vi, cell)] = round
-                        eliminated = true
-                    }
-                }
-            }
-            if (eliminated) {
-                if (state.recordHistory)
-                    state.solveLog.push({ round, type: 'rowBox', value: vi + 1, position: -1 })
-                return true
-            }
-        }
-    }
-    return false
-}
+/** Box/Line Reduction — row */
+export const rowBoxReduction = (state: SolverState, round: number): boolean =>
+    boxLineReduction(state, round, getRowCells, cellToRow, 'rowBox')
 
-/** Box/Line Reduction — column: candidate confined to one box in a column → eliminate from rest of that box */
-export const colBoxReduction = (state: SolverState, round: number): boolean => {
-    for (let col = 0; col < 9; col++) {
-        for (let vi = 0; vi < 9; vi++) {
-            // Collect unsolved column cells that still have this candidate
-            const cells: number[] = []
-            for (let row = 0; row < 9; row++) {
-                const cell = rowColToCell(row, col)
-                if (state.solution[cell] === 0 && state.possibilities[possibilityIndex(vi, cell)] === 0)
-                    cells.push(cell)
-            }
-            if (cells.length < 2) continue
-            // Check all candidate cells share the same box
-            const box = cellToBox(cells[0]!)
-            if (!cells.every((c) => cellToBox(c) === box)) continue
-            // Eliminate from rest of that box outside the column
-            const boxStartRow = Math.floor(box / 3) * 3
-            const boxStartCol = (box % 3) * 3
-            let eliminated = false
-            for (let c = boxStartCol; c < boxStartCol + 3; c++) {
-                if (c === col) continue
-                for (let row = boxStartRow; row < boxStartRow + 3; row++) {
-                    const cell = rowColToCell(row, c)
-                    if (state.solution[cell] !== 0) continue
-                    if (state.possibilities[possibilityIndex(vi, cell)] === 0) {
-                        state.possibilities[possibilityIndex(vi, cell)] = round
-                        eliminated = true
-                    }
-                }
-            }
-            if (eliminated) {
-                if (state.recordHistory)
-                    state.solveLog.push({ round, type: 'columnBox', value: vi + 1, position: -1 })
-                return true
-            }
-        }
-    }
-    return false
-}
+/** Box/Line Reduction — column */
+export const colBoxReduction = (state: SolverState, round: number): boolean =>
+    boxLineReduction(state, round, getColCells, cellToCol, 'columnBox')
 
 /** Eliminate all candidates except vi1 and vi2 from a cell. Returns true if any elimination was made. */
 const eliminateOtherCandidates = (
@@ -645,34 +548,26 @@ const hiddenPairInHouse = (
     return false
 }
 
-/** Hidden Pairs in row: two candidates in only the same two cells → eliminate other candidates */
+/** Hidden Pairs in row */
 export const hiddenPairInRow = (state: SolverState, round: number): boolean => {
     for (let row = 0; row < 9; row++) {
-        const houseCells = Array.from({ length: 9 }, (_, col) => rowColToCell(row, col))
-        if (hiddenPairInHouse(state, houseCells, round, 'hiddenPairRow')) return true
+        if (hiddenPairInHouse(state, getRowCells(row), round, 'hiddenPairRow')) return true
     }
     return false
 }
 
-/** Hidden Pairs in column: two candidates in only the same two cells → eliminate other candidates */
+/** Hidden Pairs in column */
 export const hiddenPairInColumn = (state: SolverState, round: number): boolean => {
     for (let col = 0; col < 9; col++) {
-        const houseCells = Array.from({ length: 9 }, (_, row) => rowColToCell(row, col))
-        if (hiddenPairInHouse(state, houseCells, round, 'hiddenPairColumn')) return true
+        if (hiddenPairInHouse(state, getColCells(col), round, 'hiddenPairColumn')) return true
     }
     return false
 }
 
-/** Hidden Pairs in box: two candidates in only the same two cells → eliminate other candidates */
+/** Hidden Pairs in box */
 export const hiddenPairInSection = (state: SolverState, round: number): boolean => {
     for (let box = 0; box < 9; box++) {
-        const boxStartRow = Math.floor(box / 3) * 3
-        const boxStartCol = (box % 3) * 3
-        const houseCells: number[] = []
-        for (let r = boxStartRow; r < boxStartRow + 3; r++)
-            for (let c = boxStartCol; c < boxStartCol + 3; c++)
-                houseCells.push(rowColToCell(r, c))
-        if (hiddenPairInHouse(state, houseCells, round, 'hiddenPairSection')) return true
+        if (hiddenPairInHouse(state, getBoxCells(box), round, 'hiddenPairSection')) return true
     }
     return false
 }
@@ -694,18 +589,8 @@ export const singleSolveMove = (state: SolverState, round: number): boolean =>
     hiddenPairInColumn(state, round) ||
     hiddenPairInSection(state, round)
 
-/** Main solve loop. Applies logic, falls back to guess-and-backtrack. Returns true if solved. */
-export const solve = (state: SolverState): boolean => {
-    // Apply logical techniques until no progress
-    while (singleSolveMove(state, state.round)) {
-        if (isSolved(state.solution)) return true
-        if (isImpossible(state.solution, state.possibilities)) return false
-    }
-
-    if (isSolved(state.solution)) return true
-    if (isImpossible(state.solution, state.possibilities)) return false
-
-    // Find unsolved cell with fewest candidates (Req 10.1)
+/** Find the unsolved cell with the fewest remaining candidates. Returns -1 if none found. */
+const findBestGuessCell = (state: SolverState): number => {
     let minCandidates = 10
     let bestCell = -1
     for (let cell = 0; cell < 81; cell++) {
@@ -716,43 +601,53 @@ export const solve = (state: SolverState): boolean => {
             bestCell = cell
         }
     }
+    return bestCell
+}
 
-    if (bestCell === -1) return false
-
-    // Save round before guessing so we can restore on backtrack
-    const savedRound = state.round
-
-    // Odd round for guess, even round for next deductions (Req 10.6)
+/** Try a guess at a cell and recurse. Rolls back on failure. */
+const tryGuess = (state: SolverState, cell: number, vi: number, savedRound: number): boolean => {
     const guessRound = savedRound + 1
     const deductionRound = savedRound + 2
+    const value = vi + 1
+    state.round = deductionRound
 
-    // Try each candidate in randomized order (Req 10.2)
+    if (state.recordHistory) {
+        state.solveLog.push({ round: guessRound, type: 'guess', value, position: cell })
+    }
+    mark(state, cell, guessRound, value)
+
+    if (solve(state)) return true
+
+    // Backtrack all rounds from deductionRound onwards, then the guess round
+    for (let r = state.round; r >= deductionRound; r--) {
+        rollbackRound(state, r)
+    }
+    rollbackRound(state, guessRound)
+    state.round = savedRound
+    if (state.recordHistory) {
+        state.solveLog.push({ round: guessRound, type: 'rollback', value: 0, position: -1 })
+    }
+    return false
+}
+
+/** Main solve loop. Applies logic, falls back to guess-and-backtrack. Returns true if solved. */
+export const solve = (state: SolverState): boolean => {
+    while (singleSolveMove(state, state.round)) {
+        if (isSolved(state.solution)) return true
+        if (isImpossible(state.solution, state.possibilities)) return false
+    }
+
+    if (isSolved(state.solution)) return true
+    if (isImpossible(state.solution, state.possibilities)) return false
+
+    const bestCell = findBestGuessCell(state)
+    if (bestCell === -1) return false
+
+    const savedRound = state.round
     const candidates = shuffled(Array.from({ length: 9 }, (_, i) => i))
     for (const vi of candidates) {
         if (!isPossible(bestCell, vi, state.possibilities)) continue
-
-        const value = vi + 1
-        state.round = deductionRound
-
-        // Log guess before marking (Req 10.4)
-        if (state.recordHistory) {
-            state.solveLog.push({ round: guessRound, type: 'guess', value, position: bestCell })
-        }
-        mark(state, bestCell, guessRound, value)
-
-        if (solve(state)) return true
-
-        // Backtrack all rounds from deductionRound onwards, then the guess round
-        // (recursive solve may have advanced state.round further)
-        const currentRound = state.round
-        for (let r = currentRound; r >= deductionRound; r--) {
-            rollbackRound(state, r)
-        }
-        rollbackRound(state, guessRound)
-        state.round = savedRound
-        if (state.recordHistory) {
-            state.solveLog.push({ round: guessRound, type: 'rollback', value: 0, position: -1 })
-        }
+        if (tryGuess(state, bestCell, vi, savedRound)) return true
     }
 
     return false
@@ -931,81 +826,3 @@ export const generatePuzzleWithDifficulty = (
     return null
 }
 
-// ─── Legacy API (removed in task 12.4) ───────────────────────────────────────
-// Keeps src/server/post.ts and src/server/__tests__/post.test.ts compiling
-// until they are rewritten in tasks 12.3 and 12.4.
-
-/** @deprecated Use flat-array API. Removed in task 12.4. */
-export type Board = number[][]
-
-const isValidLegacy = (board: Board, row: number, col: number, num: number): boolean => {
-    for (let c = 0; c < 9; c++) if (board[row]![c] === num) return false
-    for (let r = 0; r < 9; r++) if (board[r]![col] === num) return false
-    const br = Math.floor(row / 3) * 3
-    const bc = Math.floor(col / 3) * 3
-    for (let r = br; r < br + 3; r++)
-        for (let c = bc; c < bc + 3; c++)
-            if (board[r]![c] === num) return false
-    return true
-}
-
-const solveLegacy = (board: Board): boolean => {
-    for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-            if (board[r]![c] !== 0) continue
-            for (const num of shuffled([1, 2, 3, 4, 5, 6, 7, 8, 9])) {
-                if (!isValidLegacy(board, r, c, num)) continue
-                board[r]![c] = num
-                if (solveLegacy(board)) return true
-                board[r]![c] = 0
-            }
-            return false
-        }
-    }
-    return true
-}
-
-const countSolutionsLegacy = (board: Board, limit = 2): number => {
-    const copy = board.map((row) => [...row])
-    const state = { found: 0 }
-    const search = (r: number, c: number): void => {
-        if (state.found >= limit) return
-        if (r === 9) { state.found++; return }
-        const nr = c === 8 ? r + 1 : r
-        const nc = c === 8 ? 0 : c + 1
-        if (copy[r]![c] !== 0) { search(nr, nc); return }
-        for (let num = 1; num <= 9; num++) {
-            if (state.found >= limit) return
-            if (!isValidLegacy(copy, r, c, num)) continue
-            copy[r]![c] = num
-            search(nr, nc)
-            copy[r]![c] = 0
-        }
-    }
-    search(0, 0)
-    return state.found
-}
-
-/** @deprecated Removed in task 12.4. */
-export const generateSolution = (): Board => {
-    const board: Board = Array.from({ length: 9 }, () => Array(9).fill(0) as number[])
-    solveLegacy(board)
-    return board
-}
-
-/** @deprecated Removed in task 12.4. */
-export const punchHoles = (solution: Board, cellsToRemove: number): Board => {
-    const board = solution.map((row) => [...row])
-    const positions = shuffled(Array.from({ length: 81 }, (_, i) => i))
-    let removed = 0
-    for (const pos of positions) {
-        if (removed >= cellsToRemove) break
-        const r = Math.floor(pos / 9)
-        const c = pos % 9
-        const saved = board[r]![c]!
-        board[r]![c] = 0
-        if (countSolutionsLegacy(board) !== 1) board[r]![c] = saved
-        else removed++
-    }
-    return board
-}
