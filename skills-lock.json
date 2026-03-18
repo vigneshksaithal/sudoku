@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "adapt": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "computedHash": "1b1db5d2fb133511785345f0fcb0c9d12a805b04a2789028d8890ebe448aad12"
+    },
+    "animate": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "computedHash": "08a073eb451af8dacdb1574ebc412854e40eea1de1eab96b5637e60c94e36d6d"
+    },
+    "critique": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "computedHash": "2a0b9f0ec262bf7dbc7d40cf1a0bc398ed0beb690d503efc18ae8b6f32543855"
+    },
+    "frontend-design": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "computedHash": "f5d6a5764f83b2de29070256dc45b7dc7fbcd43d7c888723907f9ec1e77dd181"
+    },
+    "onboard": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "computedHash": "3f75cbca1d47d54e1cc988ff3b7d6fe23c117f2369cfa5d361ea522812417945"
+    },
+    "optimize": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "computedHash": "278796e7d0b6febea9a53705f741f47d473cc4725684a5e0bd75fd4a99791b1c"
+    }
+  }
+}
