@@ -37,6 +37,26 @@ Ask the user questions until you are ≥90% confident in the implementation appr
 
 **Done when:** You can describe the exact changes you'll make, which files you'll touch, and what the expected behavior is — and the user confirms.
 
+### Step 2.5: Think with Sequential Thinking MCP
+
+Before planning, use the `mcp_sequential_thinking_sequentialthinking` tool to reason through the problem.
+
+**When to use it:**
+- The request touches multiple files or systems
+- You're unsure about the right approach or architecture
+- There are non-obvious edge cases or tradeoffs
+- The full scope of the change isn't clear yet
+
+**How it works:**
+Call the sequential thinking tool once per thought step. Each call takes:
+- `thought` — your current reasoning step (what you're figuring out right now)
+- `thoughtNumber` / `totalThoughts` — where you are (totalThoughts is an estimate, adjust it up if needed)
+- `nextThoughtNeeded` — `true` to keep going, `false` when done
+
+You can revise earlier thoughts (`isRevision: true, revisesThought: N`) or branch into alternative approaches (`branchFromThought`, `branchId`). Keep going until you've landed on a clear, confident plan.
+
+**Done when:** You've worked through the problem, considered edge cases, and can describe the exact approach with confidence.
+
 ### Step 3: Plan
 
 Write a brief plan before touching any code:
@@ -222,6 +242,8 @@ Key packages: Svelte 5.x, Tailwind CSS 4.x, Hono, TypeScript 5.x, Vite 8.x, @dev
 ### MCP Tools
 
 Use MCP tools proactively — they give better answers than guessing.
+
+**Sequential Thinking MCP:** Use the sequential thinking tool for structured reasoning before planning. Use it on any non-trivial problem — call it step-by-step until `nextThoughtNeeded: false`. See Step 2.5 above.
 
 **Svelte MCP:** `list-sections` → `get-documentation` → write code → `svelte-autofixer` (loop until zero issues)
 
