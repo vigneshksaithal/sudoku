@@ -19,7 +19,6 @@
         onCellSelect,
         onCellExtend,
         onCellToggle,
-        onDragEnd,
     }: {
         board: CellState[][];
         notesBoard: NotesBoard;
@@ -30,7 +29,6 @@
         onCellSelect: (row: number, col: number) => void;
         onCellExtend: (row: number, col: number) => void;
         onCellToggle: (row: number, col: number) => void;
-        onDragEnd: () => void;
     } = $props();
 
     const isPrimaryCell = (r: number, c: number): boolean =>
@@ -75,7 +73,6 @@
 
     const handlePointerUp = (): void => {
         isDragging = false;
-        onDragEnd();
     };
 </script>
 
@@ -108,11 +105,17 @@
                         : "text-blue-600 dark:text-blue-400",
                     // Base background — overridden by selection/highlight below
                     !isSelected(selection, r, c) &&
-                        !(highlightDigit !== null && cell.value === highlightDigit) &&
+                        !(
+                            highlightDigit !== null &&
+                            cell.value === highlightDigit
+                        ) &&
                         cell.isGiven &&
                         "bg-neutral-100 dark:bg-neutral-700",
                     !isSelected(selection, r, c) &&
-                        !(highlightDigit !== null && cell.value === highlightDigit) &&
+                        !(
+                            highlightDigit !== null &&
+                            cell.value === highlightDigit
+                        ) &&
                         !cell.isGiven &&
                         "bg-white dark:bg-neutral-800",
                     !isSelected(selection, r, c) &&

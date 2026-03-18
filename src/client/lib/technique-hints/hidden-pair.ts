@@ -1,24 +1,6 @@
 import type { CellState, CandidateBoard, TechniqueHint } from '../types'
-
-type UnitCell = readonly [number, number]
-
-const getRowCells = (r: number): UnitCell[] =>
-    Array.from({ length: 9 }, (_, c) => [r, c] as const)
-
-const getColCells = (c: number): UnitCell[] =>
-    Array.from({ length: 9 }, (_, r) => [r, c] as const)
-
-const getBoxCells = (b: number): UnitCell[] => {
-    const boxRow = Math.floor(b / 3) * 3
-    const boxCol = (b % 3) * 3
-    const cells: UnitCell[] = []
-    for (let dr = 0; dr < 3; dr++) {
-        for (let dc = 0; dc < 3; dc++) {
-            cells.push([boxRow + dr, boxCol + dc] as const)
-        }
-    }
-    return cells
-}
+import { getRowCells, getColCells, getBoxCells } from './unit-cells'
+import type { UnitCell } from './unit-cells'
 
 const cellsWithDigit = (
     candidates: CandidateBoard,

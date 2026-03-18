@@ -17,7 +17,7 @@ const createButton = (difficulty: Difficulty): HTMLButtonElement => {
 
 const render = (app: HTMLElement): void => {
     app.className =
-        'flex min-h-screen items-center justify-center p-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100'
+        'flex min-h-screen w-full items-center justify-center p-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100'
 
     const container = document.createElement('div')
     container.className = 'text-center space-y-6'
@@ -42,8 +42,6 @@ const render = (app: HTMLElement): void => {
     container.appendChild(buttonGroup)
     app.appendChild(container)
 }
-
-document.body.style.margin = '0'
 
 const app = document.getElementById('app')
 if (!app) throw new Error('App element not found')

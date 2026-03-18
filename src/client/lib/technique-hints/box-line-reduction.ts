@@ -1,18 +1,6 @@
 import type { CellState, CandidateBoard, TechniqueHint } from '../types'
-
-type UnitCell = readonly [number, number]
-
-const getBoxCells = (b: number): UnitCell[] => {
-    const boxRow = Math.floor(b / 3) * 3
-    const boxCol = (b % 3) * 3
-    const cells: UnitCell[] = []
-    for (let dr = 0; dr < 3; dr++) {
-        for (let dc = 0; dc < 3; dc++) {
-            cells.push([boxRow + dr, boxCol + dc] as const)
-        }
-    }
-    return cells
-}
+import { getBoxCells, buildEliminations } from './unit-cells'
+import type { UnitCell } from './unit-cells'
 
 const getBoxIndex = (r: number, c: number): number =>
     Math.floor(r / 3) * 3 + Math.floor(c / 3)
@@ -24,15 +12,6 @@ const candidateCellsInLine = (
     digit: number
 ): UnitCell[] =>
     lineCells.filter(([r, c]) => board[r]?.[c]?.value === 0 && candidates[r]?.[c]?.has(digit) === true)
-
-const buildEliminations = (
-    candidates: CandidateBoard,
-    cells: UnitCell[],
-    digit: number
-): Array<{ row: number; col: number; digits: number[] }> =>
-    cells
-        .filter(([r, c]) => candidates[r]?.[c]?.has(digit) === true)
-        .map(([r, c]) => ({ row: r, col: c, digits: [digit] }))
 
 const checkRow = (
     board: CellState[][],

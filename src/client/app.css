@@ -8,3 +8,8 @@ select,
 textarea {
     touch-action: manipulation;
 }
+
+/* Reset body margin for webview */
+body {
+    margin: 0;
+}

@@ -34,6 +34,7 @@
 	import {
 		DIFFICULTY_STORAGE_KEY,
 		PAD_ALIGNMENT_STORAGE_KEY,
+		VALID_DIFFICULTIES,
 		getNextDifficulty,
 	} from "./lib/constants";
 	import HintPanel from "./components/HintPanel.svelte";
@@ -61,14 +62,7 @@
 		ArrowDown: [1, 0],
 		ArrowLeft: [0, -1],
 		ArrowRight: [0, 1],
-	} as const;
-
-	const DIFFICULTIES: readonly Difficulty[] = [
-		"simple",
-		"easy",
-		"intermediate",
-		"expert",
-	] as const;
+	};
 
 	let { difficulty: initialDifficulty }: { difficulty: Difficulty } =
 		$props();
@@ -410,7 +404,7 @@
 <svelte:window onkeydown={handleKeyDown} />
 
 <main
-	class="flex min-h-screen items-center justify-center p-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+	class="flex min-h-screen w-full items-center justify-center p-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
 >
 	{#if loading}
 		<p class="text-lg">Loading puzzles…</p>
@@ -429,7 +423,7 @@
 			class="flex flex-col items-center gap-3 w-full max-w-md px-2 sm:px-4"
 		>
 			<div class="flex items-center justify-center gap-1 w-full">
-				{#each DIFFICULTIES as d (d)}
+				{#each VALID_DIFFICULTIES as d (d)}
 					<button
 						class="px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
 							{d === difficulty
@@ -453,7 +447,6 @@
 				onCellSelect={handleCellSelect}
 				onCellExtend={handleCellExtend}
 				onCellToggle={handleCellToggle}
-				onDragEnd={() => {}}
 			/>
 			{#if activeHint !== null}
 				<HintPanel
