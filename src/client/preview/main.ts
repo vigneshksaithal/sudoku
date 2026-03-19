@@ -7,9 +7,13 @@ const createButton = (difficulty: Difficulty): HTMLButtonElement => {
     const btn = document.createElement('button')
     btn.textContent = difficulty
     btn.className =
-        'w-full px-5 py-3 rounded-lg font-semibold capitalize bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]'
+        'min-h-11 w-full rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold capitalize text-white transition-all hover:bg-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500'
     btn.addEventListener('click', (event: MouseEvent) => {
-        localStorage.setItem(DIFFICULTY_STORAGE_KEY, difficulty)
+        try {
+            localStorage.setItem(DIFFICULTY_STORAGE_KEY, difficulty)
+        } catch {
+            // localStorage unavailable — continue to expanded game
+        }
         requestExpandedMode(event, 'game')
     })
     return btn
@@ -17,7 +21,7 @@ const createButton = (difficulty: Difficulty): HTMLButtonElement => {
 
 const render = (app: HTMLElement): void => {
     app.className =
-        'flex min-h-screen w-full items-center justify-center p-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100'
+        'flex h-full w-full items-center justify-center overflow-hidden p-4 bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100'
 
     const container = document.createElement('div')
     container.className = 'text-center space-y-6'

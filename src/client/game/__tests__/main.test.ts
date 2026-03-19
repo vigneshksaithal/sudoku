@@ -49,6 +49,27 @@ describe('game/main.ts — unit tests', () => {
         const props = mockMount.mock.calls[0]?.[1]?.props as { difficulty: Difficulty }
         expect(props.difficulty).toBe('simple')
     })
+
+    it('defaults to "simple" when localStorage throws on read', async () => {
+        const appEl = { id: 'app' } as unknown as HTMLElement
+        vi.stubGlobal('document', {
+            getElementById: (id: string): HTMLElement | null => (id === 'app' ? appEl : null),
+        })
+        vi.stubGlobal('localStorage', {
+            getItem: (): string | null => {
+                throw new Error('storage unavailable')
+            },
+            setItem: (): void => {},
+            removeItem: (): void => {},
+            clear: (): void => {},
+        })
+
+        await import('../main')
+
+        expect(mockMount).toHaveBeenCalledOnce()
+        const props = mockMount.mock.calls[0]?.[1]?.props as { difficulty: Difficulty }
+        expect(props.difficulty).toBe('simple')
+    })
 })
 
 // Property 4: Game screen fetches puzzle for stored difficulty

@@ -33,7 +33,6 @@
 	} from "./lib/app-logic";
 	import {
 		DIFFICULTY_STORAGE_KEY,
-		PAD_ALIGNMENT_STORAGE_KEY,
 		VALID_DIFFICULTIES,
 		getNextDifficulty,
 	} from "./lib/constants";
@@ -98,31 +97,33 @@
 		undoStack.length === 0 || screen !== "playing",
 	);
 
-	let padAlignment: "left" | "right" = $state(
-		(() => {
-			try {
-				const stored = localStorage.getItem(PAD_ALIGNMENT_STORAGE_KEY);
-				return stored === "right" ? "right" : "left";
-			} catch {
-				return "left";
-			}
-		})(),
+	const autoCandidateActive = $derived(
+		board.length > 0 && hasAutoCandidates(board, notesBoard),
 	);
 
 	const digitCounts: ReadonlyMap<number, number> = $derived(
 		countDigitPlacements(board),
 	);
 
-	const handleToggleAlignment = (): void => {
-		padAlignment = padAlignment === "left" ? "right" : "left";
-		try {
-			localStorage.setItem(PAD_ALIGNMENT_STORAGE_KEY, padAlignment);
-		} catch {
-			// localStorage unavailable — preference not persisted
-		}
+	let highlightDigit: number | null = $state(null);
+
+	const resetRoundState = (): void => {
+		selection = EMPTY_SELECTION;
+		highlightDigit = null;
+		validationMessage = null;
+		notesBoard = createEmptyNotesBoard();
+		notesMode = false;
+		hintsUsed = 0;
+		activeHint = null;
+		undoStack = clearStack();
+		screen = "playing";
 	};
 
-	let highlightDigit: number | null = $state(null);
+	const loadDifficultyBoard = (targetDifficulty: Difficulty): void => {
+		if (puzzles === null) return;
+		board = updateConflicts(parseBoard(puzzles[targetDifficulty]));
+		resetRoundState();
+	};
 
 	const fetchPuzzles = async (): Promise<void> => {
 		loading = true;
@@ -135,15 +136,7 @@
 			puzzles = json.data.puzzles;
 			solutions = json.data.solutions ?? null;
 			if (puzzles) {
-				board = updateConflicts(parseBoard(puzzles[difficulty]));
-				selection = EMPTY_SELECTION;
-				highlightDigit = null;
-				validationMessage = null;
-				notesBoard = createEmptyNotesBoard();
-				notesMode = false;
-				hintsUsed = 0;
-				activeHint = null;
-				undoStack = clearStack();
+				loadDifficultyBoard(difficulty);
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : "Failed to load puzzles";
@@ -386,16 +379,7 @@
 			// localStorage unavailable — preference not persisted
 		}
 		difficulty = next;
-		board = updateConflicts(parseBoard(puzzles[next]));
-		selection = EMPTY_SELECTION;
-		highlightDigit = null;
-		validationMessage = null;
-		notesBoard = createEmptyNotesBoard();
-		notesMode = false;
-		hintsUsed = 0;
-		activeHint = null;
-		undoStack = clearStack();
-		screen = "playing";
+		loadDifficultyBoard(next);
 	};
 
 	const nextDifficulty = $derived(getNextDifficulty(difficulty));
@@ -404,15 +388,19 @@
 <svelte:window onkeydown={handleKeyDown} />
 
 <main
-	class="flex min-h-screen w-full items-center justify-center p-4 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+	class="h-full w-full overflow-hidden bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100"
 >
 	{#if loading}
-		<p class="text-lg">Loading puzzles…</p>
+		<div class="flex h-full w-full items-center justify-center px-4">
+			<p class="text-base">Loading puzzles…</p>
+		</div>
 	{:else if error}
-		<div class="text-center space-y-4">
+		<div
+			class="flex h-full w-full flex-col items-center justify-center gap-4 px-4 text-center"
+		>
 			<p class="text-red-600 dark:text-red-400">{error}</p>
 			<button
-				class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+				class="min-h-11 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"
 				onclick={() => fetchPuzzles()}
 			>
 				Retry
@@ -420,12 +408,12 @@
 		</div>
 	{:else if screen === "playing"}
 		<div
-			class="flex flex-col items-center gap-3 w-full max-w-md px-2 sm:px-4"
+			class="mx-auto flex h-full w-full max-w-4xl flex-col gap-2 px-2 py-2"
 		>
-			<div class="flex items-center justify-center gap-1 w-full">
+			<div class="flex shrink-0 items-center justify-center gap-1">
 				{#each VALID_DIFFICULTIES as d (d)}
 					<button
-						class="px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
+						class="rounded-full px-2 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
 							{d === difficulty
 							? 'bg-blue-600 text-white'
 							: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
@@ -435,60 +423,93 @@
 					</button>
 				{/each}
 			</div>
-			<Grid
-				{board}
-				{selection}
-				{notesBoard}
-				{highlightDigit}
-				{techniqueHighlight}
-				hintDigit={activeHint?.action === "placement"
-					? activeHint.digit
-					: null}
-				onCellSelect={handleCellSelect}
-				onCellExtend={handleCellExtend}
-				onCellToggle={handleCellToggle}
-			/>
-			{#if activeHint !== null}
-				<HintPanel
-					hint={activeHint}
-					onApply={handleApplyHint}
-					onDismiss={handleDismissHint}
-				/>
-			{/if}
-			<NumberPad
-				onNumber={handleNumber}
-				onErase={handleErase}
-				{notesMode}
-				onToggleNotes={() => {
-					notesMode = !notesMode;
-				}}
-				onHint={handleHint}
-				{hintsDisabled}
-				onUndo={handleUndo}
-				{undoDisabled}
-				onAutoCandidate={handleAutoCandidate}
-				autoCandidateDisabled={screen !== "playing"}
-				{digitCounts}
-				{padAlignment}
-				onToggleAlignment={handleToggleAlignment}
-			/>
-			{#if validating}
-				<p class="text-sm text-neutral-500">Checking…</p>
-			{/if}
-			{#if validationMessage}
-				<p class="text-sm text-red-600 dark:text-red-400">
-					{validationMessage}
-				</p>
-			{/if}
+
+			<div
+				class="flex min-h-0 flex-1 flex-col items-center gap-2 sm:flex-row sm:items-start sm:justify-center"
+			>
+				<!-- Grid area -->
+				<div
+					class="flex w-full min-h-0 flex-1 flex-col items-center gap-2 sm:w-3/5 sm:flex-initial"
+				>
+					<div
+						class="aspect-square w-full max-h-full sm:max-w-[min(60vh,100%)]"
+					>
+						<Grid
+							{board}
+							{selection}
+							{notesBoard}
+							{highlightDigit}
+							{techniqueHighlight}
+							hintDigit={activeHint?.action === "placement"
+								? activeHint.digit
+								: null}
+							onCellSelect={handleCellSelect}
+							onCellExtend={handleCellExtend}
+							onCellToggle={handleCellToggle}
+						/>
+					</div>
+					{#if activeHint !== null}
+						<div class="hidden w-full sm:block">
+							<HintPanel
+								hint={activeHint}
+								onApply={handleApplyHint}
+								onDismiss={handleDismissHint}
+							/>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Controls area -->
+				<div
+					class="flex w-full shrink-0 flex-col gap-2 sm:w-2/5 sm:shrink-0"
+				>
+					{#if activeHint !== null}
+						<div class="w-full sm:hidden">
+							<HintPanel
+								hint={activeHint}
+								onApply={handleApplyHint}
+								onDismiss={handleDismissHint}
+							/>
+						</div>
+					{/if}
+					<NumberPad
+						onNumber={handleNumber}
+						onErase={handleErase}
+						{notesMode}
+						onToggleNotes={() => {
+							notesMode = !notesMode;
+						}}
+						onHint={handleHint}
+						{hintsDisabled}
+						onUndo={handleUndo}
+						{undoDisabled}
+						onAutoCandidate={handleAutoCandidate}
+						{autoCandidateActive}
+						{digitCounts}
+					/>
+					{#if validating}
+						<p class="text-sm text-neutral-500">Checking…</p>
+					{/if}
+					{#if validationMessage}
+						<p
+							class="text-center text-sm text-red-600 dark:text-red-400"
+						>
+							{validationMessage}
+						</p>
+					{/if}
+				</div>
+			</div>
 		</div>
 	{:else if screen === "completed"}
-		<div class="text-center space-y-6">
+		<div
+			class="flex h-full w-full flex-col items-center justify-center gap-6 px-4 text-center"
+		>
 			<h1 class="text-3xl font-bold">🎉 Solved!</h1>
 			<p class="text-neutral-600 dark:text-neutral-400">
 				You completed the {difficulty} puzzle.
 			</p>
 			<button
-				class="px-5 py-3 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px]"
+				class="min-h-11 min-w-11 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition-all hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
 				onclick={() => changeDifficulty(nextDifficulty)}
 			>
 				Try {nextDifficulty}

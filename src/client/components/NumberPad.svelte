@@ -1,115 +1,134 @@
 <script lang="ts">
-    import IconButton from "./IconButton.svelte";
+  let {
+    onNumber,
+    onErase,
+    notesMode,
+    onToggleNotes,
+    onHint,
+    hintsDisabled,
+    onUndo,
+    undoDisabled,
+    onAutoCandidate,
+    autoCandidateActive,
+    digitCounts,
+  }: {
+    onNumber: (num: number) => void;
+    onErase: () => void;
+    notesMode: boolean;
+    onToggleNotes: () => void;
+    onHint: () => void;
+    hintsDisabled: boolean;
+    onUndo: () => void;
+    undoDisabled: boolean;
+    onAutoCandidate: () => void;
+    autoCandidateActive: boolean;
+    digitCounts: ReadonlyMap<number, number>;
+  } = $props();
 
-    let {
-        onNumber,
-        onErase,
-        notesMode,
-        onToggleNotes,
-        onHint,
-        hintsDisabled,
-        onUndo,
-        undoDisabled,
-        onAutoCandidate,
-        autoCandidateDisabled,
-        digitCounts,
-        padAlignment,
-        onToggleAlignment,
-    }: {
-        onNumber: (num: number) => void;
-        onErase: () => void;
-        notesMode: boolean;
-        onToggleNotes: () => void;
-        onHint: () => void;
-        hintsDisabled: boolean;
-        onUndo: () => void;
-        undoDisabled: boolean;
-        onAutoCandidate: () => void;
-        autoCandidateDisabled: boolean;
-        digitCounts: ReadonlyMap<number, number>;
-        padAlignment: "left" | "right";
-        onToggleAlignment: () => void;
-    } = $props();
+  const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
-    const isSolved = (digit: number): boolean =>
-        (digitCounts.get(digit) ?? 0) >= 9;
-
-    const digitGridOrder = $derived(
-        padAlignment === "left" ? "order-1" : "order-2",
-    );
-    const actionColOrder = $derived(
-        padAlignment === "left" ? "order-2" : "order-1",
-    );
+  const isSolved = (digit: number): boolean =>
+    (digitCounts.get(digit) ?? 0) >= 9;
 </script>
 
-<div class="flex gap-2 w-full" role="group" aria-label="Number pad">
-    <!-- Digit grid: 3×3 phone layout -->
-    <div class="grid grid-cols-3 gap-2 flex-1 {digitGridOrder}">
-        {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as num (num)}
-            <button
-                class="aspect-square w-full rounded-xl bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 font-bold text-lg hover:bg-neutral-200 dark:hover:bg-neutral-600 active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500 {isSolved(
-                    num,
-                )
-                    ? 'opacity-40'
-                    : ''}"
-                onclick={() => onNumber(num)}
-                aria-label="Enter {num}"
-            >
-                {num}
-            </button>
-        {/each}
+<div class="w-full space-y-2" role="group" aria-label="Number pad">
+  <!-- Mode tabs + Undo/Hint buttons -->
+  <div class="flex items-center gap-2">
+    <div
+      class="flex flex-1 rounded-lg bg-neutral-100 p-0.5 dark:bg-neutral-800"
+    >
+      <button
+        class={[
+          "flex-1 rounded-md py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500",
+          !notesMode
+            ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-700 dark:text-blue-400"
+            : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200",
+        ]}
+        style="min-height: 36px"
+        onclick={onToggleNotes}
+        aria-pressed={!notesMode}
+        aria-label="Normal mode"
+      >
+        Normal
+      </button>
+      <button
+        class={[
+          "flex-1 rounded-md py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500",
+          notesMode
+            ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-700 dark:text-blue-400"
+            : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200",
+        ]}
+        style="min-height: 36px"
+        onclick={onToggleNotes}
+        aria-pressed={notesMode}
+        aria-label="Candidate mode"
+      >
+        Candidate
+      </button>
     </div>
+    <button
+      class={[
+        "flex items-center justify-center rounded-md min-h-11 min-w-11 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500",
+        undoDisabled
+          ? "cursor-not-allowed opacity-40 bg-neutral-100 text-neutral-400 dark:bg-neutral-700 dark:text-neutral-500"
+          : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600",
+      ]}
+      onclick={onUndo}
+      disabled={undoDisabled}
+      aria-label="Undo last move"
+      title="Undo"
+    >
+      <span class="text-lg leading-none">↩</span>
+    </button>
+    <button
+      class={[
+        "flex items-center justify-center rounded-md min-h-11 min-w-11 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500",
+        hintsDisabled
+          ? "cursor-not-allowed opacity-40 bg-amber-100 text-amber-400 dark:bg-amber-900/40 dark:text-amber-600"
+          : "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-800/50",
+      ]}
+      onclick={onHint}
+      disabled={hintsDisabled}
+      aria-label="Get hint"
+      title="Hint"
+    >
+      <span class="text-lg leading-none">💡</span>
+    </button>
+  </div>
 
-    <!-- Action column: vertical -->
-    <div class="flex flex-col gap-2 {actionColOrder}" style="width: 4.5rem;">
-        <IconButton
-            onclick={onUndo}
-            label="Undo last move"
-            variant="default"
-            disabled={undoDisabled}
-        >
-            <span class="text-lg leading-none">↩</span>
-            <span class="text-xs">Undo</span>
-        </IconButton>
-        <IconButton
-            onclick={onToggleNotes}
-            label={notesMode ? "Notes on" : "Notes off"}
-            variant="notes"
-            active={notesMode}
-        >
-            <span class="text-lg leading-none">✏️</span>
-            <span class="text-xs">Notes</span>
-        </IconButton>
-        <IconButton
-            onclick={onHint}
-            label="Hint"
-            variant="hint"
-            disabled={hintsDisabled}
-        >
-            <span class="text-lg leading-none">💡</span>
-            <span class="text-xs">Hint</span>
-        </IconButton>
-        <IconButton
-            onclick={onAutoCandidate}
-            label="Auto-fill candidate notes"
-            variant="default"
-            disabled={autoCandidateDisabled}
-        >
-            <span class="text-lg leading-none">🔢</span>
-            <span class="text-xs">Auto</span>
-        </IconButton>
-        <IconButton onclick={onErase} label="Erase cell" variant="danger">
-            <span class="text-lg leading-none">✕</span>
-            <span class="text-xs">Erase</span>
-        </IconButton>
-        <IconButton
-            onclick={onToggleAlignment}
-            label={padAlignment === "left"
-                ? "Switch pad to right"
-                : "Switch pad to left"}
-            variant="default"
-        >
-            <span class="text-lg leading-none">↔</span>
-        </IconButton>
-    </div>
+  <!-- 5-column digit grid -->
+  <div class="grid grid-cols-5 gap-1">
+    {#each DIGITS as num (num)}
+      <button
+        class={[
+          "flex items-center justify-center rounded-md min-h-9 text-lg font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-neutral-100 text-neutral-900 hover:bg-neutral-200 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600",
+          isSolved(num) && "opacity-40",
+        ]}
+        onclick={() => onNumber(num)}
+        aria-label="Enter {num}"
+      >
+        {num}
+      </button>
+    {/each}
+    <button
+      class="flex items-center justify-center rounded-md min-h-9 text-lg font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-800/50"
+      onclick={onErase}
+      aria-label="Erase cell"
+    >
+      ✕
+    </button>
+  </div>
+
+  <!-- Auto Candidate Mode checkbox -->
+  <label
+    class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm text-neutral-700 select-none dark:text-neutral-300"
+  >
+    <input
+      type="checkbox"
+      class="h-4 w-4 accent-blue-600"
+      checked={autoCandidateActive}
+      onchange={onAutoCandidate}
+    />
+    Auto Candidate Mode
+  </label>
 </div>

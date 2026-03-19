@@ -67,4 +67,27 @@ describe('Property 3: Preview button click stores difficulty before requesting e
             })
         )
     })
+
+    it('still requests expanded mode when localStorage write throws', async () => {
+        mockRequestExpandedMode.mockClear()
+        vi.stubGlobal('localStorage', {
+            getItem: (): string | null => null,
+            setItem: (): void => {
+                throw new Error('storage unavailable')
+            },
+            removeItem: (): void => {},
+            clear: (): void => {},
+        })
+
+        vi.resetModules()
+        await import('../main')
+
+        const firstButton = document.querySelector('button')
+        expect(firstButton).toBeDefined()
+
+        firstButton!.click()
+
+        expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
+        expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
+    })
 })

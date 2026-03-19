@@ -9,7 +9,14 @@ textarea {
     touch-action: manipulation;
 }
 
-/* Reset body margin for webview */
+/* Fixed webview canvas */
+html,
 body {
+    height: 100%;
     margin: 0;
+    overflow: hidden;
+}
+
+#app {
+    height: 100%;
 }
