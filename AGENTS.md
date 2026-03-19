@@ -24,7 +24,6 @@ Available skills in `.agents/skills/`:
 | `reddit-api/SKILL.md` | Interacting with Reddit API |
 | `devvit-config/SKILL.md` | Devvit configuration changes |
 | `devvit-viewport/SKILL.md` | Any UI layout, sizing, or visual design work |
-| `design/SKILL.md` | UI/UX design decisions |
 
 ### Step 2: Clarify Requirements
 
