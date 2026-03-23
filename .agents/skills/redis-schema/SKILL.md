@@ -1,5 +1,5 @@
 ---
-name: add-redis-schema
+name: redis-schema
 description: Design and implement Redis data storage for a new feature. Use when adding new data models, leaderboards, counters, or any persistent state.
 ---
 

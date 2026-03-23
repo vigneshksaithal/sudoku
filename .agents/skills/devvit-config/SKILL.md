@@ -1,5 +1,5 @@
 ---
-name: update-devvit-config
+name: devvit-config
 description: Modify devvit.json to add menu items, triggers, post entrypoints, or permissions. Use when wiring new server endpoints to Reddit UI actions.
 ---
 

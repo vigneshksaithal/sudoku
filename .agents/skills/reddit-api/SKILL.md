@@ -1,5 +1,5 @@
 ---
-name: use-reddit-api
+name: reddit-api
 description: Interact with the Reddit API from server-side code. Use when reading user info, submitting posts/comments, setting flair, or accessing subreddit data.
 ---
 

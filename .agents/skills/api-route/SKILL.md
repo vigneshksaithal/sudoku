@@ -1,5 +1,5 @@
 ---
-name: add-api-route
+name: api-route
 description: Add a new Hono API route or server-side utility. Use when adding endpoints, handlers, reusable server logic, validation helpers, or data transformation functions.
 ---
 

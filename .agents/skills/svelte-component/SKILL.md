@@ -1,5 +1,5 @@
 ---
-name: add-svelte-component
+name: svelte-component
 description: Create a Svelte 5 component with optional data fetching. Use when adding UI components, views, interactive elements, or wiring client-side fetch to server endpoints.
 ---
 
