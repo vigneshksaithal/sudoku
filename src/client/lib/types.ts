@@ -4,6 +4,8 @@ export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'expert'
 
 export type GameScreen = 'playing' | 'completed'
 
+export type InputMode = 'cell-first' | 'digit-first'
+
 export type CellState = {
     value: number
     isGiven: boolean

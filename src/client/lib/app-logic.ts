@@ -1,4 +1,4 @@
-import { clearCellNotes, toggleNote } from './notes-utils'
+import { clearCellNotes, cleanupNotes, toggleNote } from './notes-utils'
 import { parseKey } from './selection-utils'
 import type { Selection } from './selection-utils'
 import { buildCandidateBoard } from './technique-hints/candidate-board'
@@ -118,4 +118,26 @@ export const clearAutoCandidates = (
             notesBoard[r]?.[c]?.clear()
         }
     }
+}
+
+/**
+ * Place `digit` into `board[row][col]` in digit-first mode.
+ * Clears the cell's notes and removes the digit from all peer notes.
+ * Returns `true` if placement occurred, `false` if skipped.
+ */
+export const placeLockedDigit = (
+    board: CellState[][],
+    notesBoard: NotesBoard,
+    row: number,
+    col: number,
+    digit: number,
+): boolean => {
+    if (row < 0 || row > 8 || col < 0 || col > 8) return false
+    const cell = board[row]?.[col]
+    if (!cell || cell.isGiven) return false
+
+    cell.value = digit
+    clearCellNotes(notesBoard, row, col)
+    cleanupNotes(notesBoard, row, col, digit)
+    return true
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SvelteSet } from 'svelte/reactivity'
-import { applyAutoCandidates, hasAutoCandidates, clearAutoCandidates } from '../app-logic'
+import { applyAutoCandidates, hasAutoCandidates, clearAutoCandidates, placeLockedDigit } from '../app-logic'
 import type { CellState, NotesBoard } from '../types'
 
 // Helper: create a 9×9 board of empty cells
@@ -219,5 +219,98 @@ describe('clearAutoCandidates', () => {
 
         expect(notesBoard[0]![0]!.has(3)).toBe(true)
         expect(notesBoard[0]![0]!.size).toBe(1)
+    })
+})
+
+describe('placeLockedDigit', () => {
+    /**
+     * Place digit into empty non-given cell → cell value equals digit, returns true.
+     * Validates: Requirements 3.1
+     */
+    it('places digit into empty non-given cell and returns true', () => {
+        const board = createEmptyBoard()
+        const notesBoard = createEmptyNotesBoard()
+
+        const result = placeLockedDigit(board, notesBoard, 4, 4, 7)
+
+        expect(result).toBe(true)
+        expect(board[4]![4]!.value).toBe(7)
+    })
+
+    /**
+     * Place digit into given cell → returns false, cell unchanged.
+     * Validates: Requirements 3.2
+     */
+    it('returns false and leaves given cell unchanged', () => {
+        const board = createEmptyBoard()
+        const notesBoard = createEmptyNotesBoard()
+        board[2]![3]!.isGiven = true
+        board[2]![3]!.value = 5
+
+        const result = placeLockedDigit(board, notesBoard, 2, 3, 9)
+
+        expect(result).toBe(false)
+        expect(board[2]![3]!.value).toBe(5)
+    })
+
+    /**
+     * Place digit into cell with existing value → overwrites value, returns true.
+     * Validates: Requirements 3.1
+     */
+    it('overwrites existing value in non-given cell and returns true', () => {
+        const board = createEmptyBoard()
+        const notesBoard = createEmptyNotesBoard()
+        board[0]![0]!.value = 3
+
+        const result = placeLockedDigit(board, notesBoard, 0, 0, 8)
+
+        expect(result).toBe(true)
+        expect(board[0]![0]!.value).toBe(8)
+    })
+
+    /**
+     * Place digit clears cell notes and removes digit from peer notes.
+     * Validates: Requirements 3.3
+     */
+    it('clears cell notes and removes placed digit from all peer notes', () => {
+        const board = createEmptyBoard()
+        const notesBoard = createEmptyNotesBoard()
+
+        // Add notes to the target cell
+        notesBoard[1]![1]!.add(3)
+        notesBoard[1]![1]!.add(5)
+
+        // Add the digit-to-place (5) to some peers: same row, same col, same box
+        notesBoard[1]![5]!.add(5) // same row peer
+        notesBoard[7]![1]!.add(5) // same col peer
+        notesBoard[2]![2]!.add(5) // same box peer (box top-left is (0,0))
+        notesBoard[1]![5]!.add(3) // different digit in peer — should be untouched
+
+        placeLockedDigit(board, notesBoard, 1, 1, 5)
+
+        // Target cell notes cleared
+        expect(notesBoard[1]![1]!.size).toBe(0)
+
+        // Digit 5 removed from peers
+        expect(notesBoard[1]![5]!.has(5)).toBe(false)
+        expect(notesBoard[7]![1]!.has(5)).toBe(false)
+        expect(notesBoard[2]![2]!.has(5)).toBe(false)
+
+        // Other digits in peers untouched
+        expect(notesBoard[1]![5]!.has(3)).toBe(true)
+    })
+
+    /**
+     * Out-of-bounds row/col → returns false.
+     * Validates: Requirements 3.1
+     */
+    it('returns false for out-of-bounds coordinates', () => {
+        const board = createEmptyBoard()
+        const notesBoard = createEmptyNotesBoard()
+
+        expect(placeLockedDigit(board, notesBoard, -1, 0, 5)).toBe(false)
+        expect(placeLockedDigit(board, notesBoard, 0, -1, 5)).toBe(false)
+        expect(placeLockedDigit(board, notesBoard, 9, 0, 5)).toBe(false)
+        expect(placeLockedDigit(board, notesBoard, 0, 9, 5)).toBe(false)
     })
 })

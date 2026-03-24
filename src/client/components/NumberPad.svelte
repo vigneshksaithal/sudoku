@@ -11,6 +11,9 @@
     onAutoCandidate,
     autoCandidateActive,
     digitCounts,
+    lockedDigit,
+    digitFirstMode,
+    onToggleDigitFirst,
   }: {
     onNumber: (num: number) => void;
     onErase: () => void;
@@ -23,6 +26,9 @@
     onAutoCandidate: () => void;
     autoCandidateActive: boolean;
     digitCounts: ReadonlyMap<number, number>;
+    lockedDigit: number | null;
+    digitFirstMode: boolean;
+    onToggleDigitFirst: () => void;
   } = $props();
 
   const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -102,10 +108,13 @@
       <button
         class={[
           "flex items-center justify-center rounded-md min-h-9 text-lg font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-neutral-100 text-neutral-900 hover:bg-neutral-200 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600",
-          isSolved(num) && "opacity-40",
+          lockedDigit === num
+            ? "ring-2 ring-blue-500 bg-blue-100 dark:bg-blue-900/40"
+            : isSolved(num) && "opacity-40",
         ]}
         onclick={() => onNumber(num)}
         aria-label="Enter {num}"
+        aria-pressed={lockedDigit === num}
       >
         {num}
       </button>
@@ -119,16 +128,29 @@
     </button>
   </div>
 
-  <!-- Auto Candidate Mode checkbox -->
-  <label
-    class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm text-neutral-700 select-none dark:text-neutral-300"
-  >
-    <input
-      type="checkbox"
-      class="h-4 w-4 accent-blue-600"
-      checked={autoCandidateActive}
-      onchange={onAutoCandidate}
-    />
-    Auto Candidate Mode
-  </label>
+  <!-- Checkboxes row -->
+  <div class="flex items-center gap-4 px-1">
+    <label
+      class="flex cursor-pointer items-center gap-2 text-sm text-neutral-700 select-none dark:text-neutral-300"
+    >
+      <input
+        type="checkbox"
+        class="h-4 w-4 accent-blue-600"
+        checked={autoCandidateActive}
+        onchange={onAutoCandidate}
+      />
+      Auto Candidate
+    </label>
+    <label
+      class="flex cursor-pointer items-center gap-2 text-sm text-neutral-700 select-none dark:text-neutral-300"
+    >
+      <input
+        type="checkbox"
+        class="h-4 w-4 accent-blue-600"
+        checked={digitFirstMode}
+        onchange={onToggleDigitFirst}
+      />
+      Digit First
+    </label>
+  </div>
 </div>

@@ -30,6 +30,7 @@
 		applyAutoCandidates,
 		hasAutoCandidates,
 		clearAutoCandidates,
+		placeLockedDigit,
 	} from "./lib/app-logic";
 	import {
 		DIFFICULTY_STORAGE_KEY,
@@ -106,6 +107,8 @@
 	);
 
 	let highlightDigit: number | null = $state(null);
+	let lockedDigit: number | null = $state(null);
+	let digitFirstMode: boolean = $state(false);
 
 	const resetRoundState = (): void => {
 		selection = EMPTY_SELECTION;
@@ -117,6 +120,8 @@
 		activeHint = null;
 		undoStack = clearStack();
 		screen = "playing";
+		lockedDigit = null;
+		digitFirstMode = false;
 	};
 
 	const loadDifficultyBoard = (targetDifficulty: Difficulty): void => {
@@ -175,6 +180,34 @@
 
 	const handleCellSelect = (row: number, col: number): void => {
 		selection = setSelection(row, col);
+
+		if (digitFirstMode && lockedDigit !== null) {
+			const cell = board[row]?.[col];
+			if (!cell || cell.isGiven) return;
+
+			if (notesMode) {
+				if (cell.value !== 0) return;
+				undoStack = pushSnapshot(
+					undoStack,
+					captureSnapshot(board, notesBoard, hintsUsed),
+				);
+				toggleNote(notesBoard, row, col, lockedDigit);
+			} else {
+				undoStack = pushSnapshot(
+					undoStack,
+					captureSnapshot(board, notesBoard, hintsUsed),
+				);
+				if (
+					placeLockedDigit(board, notesBoard, row, col, lockedDigit)
+				) {
+					board = updateConflicts(board);
+					checkCompletion();
+				}
+			}
+			return;
+		}
+
+		// No locked digit: highlight from cell value
 		const cellValue = board[row]?.[col]?.value;
 		if (cellValue !== undefined && cellValue > 0) {
 			highlightDigit = cellValue;
@@ -199,8 +232,13 @@
 
 		const key = e.key;
 
-		// Escape: clear selection
+		// Escape: clear locked digit if set (digit-first mode), otherwise clear selection
 		if (key === "Escape") {
+			if (digitFirstMode && lockedDigit !== null) {
+				lockedDigit = null;
+				highlightDigit = null;
+				return;
+			}
 			selection = clearSelection();
 			highlightDigit = null;
 			return;
@@ -238,10 +276,50 @@
 			e.preventDefault();
 			const [dr, dc] = move;
 			selection = moveFocus(selection.focusCell, dr, dc);
+
+			// With a locked digit in digit-first mode, auto-place into the newly focused cell
+			if (
+				digitFirstMode &&
+				lockedDigit !== null &&
+				selection.focusCell !== null
+			) {
+				const [newRow, newCol] = selection.focusCell;
+				const cell = board[newRow]?.[newCol];
+				if (cell && !cell.isGiven && cell.value === 0) {
+					undoStack = pushSnapshot(
+						undoStack,
+						captureSnapshot(board, notesBoard, hintsUsed),
+					);
+					if (notesMode) {
+						toggleNote(notesBoard, newRow, newCol, lockedDigit);
+					} else {
+						if (
+							placeLockedDigit(
+								board,
+								notesBoard,
+								newRow,
+								newCol,
+								lockedDigit,
+							)
+						) {
+							board = updateConflicts(board);
+							checkCompletion();
+						}
+					}
+				}
+			}
 		}
 	};
 
 	const handleNumber = (num: number): void => {
+		if (digitFirstMode) {
+			// Toggle locked digit: clear if same digit tapped again, otherwise lock
+			lockedDigit = lockedDigit === num ? null : num;
+			highlightDigit = lockedDigit;
+			return;
+		}
+
+		// Cell-first mode: place directly into focused cell
 		highlightDigit = num;
 		undoStack = pushSnapshot(
 			undoStack,
@@ -259,11 +337,9 @@
 		if (!cell || cell.isGiven) return;
 
 		if (notesMode) {
-			// In notes mode: only toggle note if cell has no value
 			if (cell.value !== 0) return;
 			toggleNote(notesBoard, selectedRow, selectedCol, num);
 		} else {
-			// Normal mode: place value, clear cell notes, cleanup peer notes
 			board[selectedRow]![selectedCol] = { ...cell, value: num };
 			board = updateConflicts(board);
 			clearCellNotes(notesBoard, selectedRow, selectedCol);
@@ -486,6 +562,12 @@
 						onAutoCandidate={handleAutoCandidate}
 						{autoCandidateActive}
 						{digitCounts}
+						{lockedDigit}
+						{digitFirstMode}
+						onToggleDigitFirst={() => {
+							digitFirstMode = !digitFirstMode;
+							if (!digitFirstMode) lockedDigit = null;
+						}}
 					/>
 					{#if validating}
 						<p class="text-sm text-neutral-500">Checking…</p>
