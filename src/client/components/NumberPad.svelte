@@ -1,9 +1,5 @@
 <script lang="ts">
-  import Undo2 from "lucide-svelte/icons/undo-2";
-  import Lightbulb from "lucide-svelte/icons/lightbulb";
-  import Eraser from "lucide-svelte/icons/eraser";
-  import Pen from "lucide-svelte/icons/pen";
-  import MousePointer2 from "lucide-svelte/icons/mouse-pointer-2";
+  import { Undo2, Lightbulb, Eraser, Pen, MousePointer2 } from "lucide-svelte";
 
   let {
     onNumber,
