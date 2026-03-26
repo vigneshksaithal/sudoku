@@ -122,19 +122,19 @@
           {cell.value}
         {:else if isPrimaryCell(r, c) && hintDigit !== null}
           <span
-            class="text-lg font-bold text-emerald-600 opacity-70 dark:text-emerald-400"
+    class="text-2xl sm:text-3xl font-bold text-emerald-600 opacity-70 dark:text-emerald-400"
           >
             {hintDigit}
           </span>
         {:else}
-          <div class="grid h-full w-full grid-cols-3 p-px">
+          <div class="grid h-full w-full grid-cols-3 p-px text-neutral-600 dark:text-neutral-400">
             {#each DIGITS as digit (digit)}
               <span
                 class={[
-                  "flex items-center justify-center text-[0.5rem] leading-none sm:text-[0.6rem]",
+                  "flex items-center justify-center text-[0.6rem] sm:text-xs leading-none",
                   highlightDigit === digit &&
                     notesBoard[r]?.[c]?.has(digit) &&
-                    "font-bold text-blue-600",
+                    "font-bold text-blue-700 dark:text-blue-400",
                 ]}
               >
                 {notesBoard[r]?.[c]?.has(digit) ? digit : ""}

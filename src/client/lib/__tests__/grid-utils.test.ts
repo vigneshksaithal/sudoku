@@ -45,19 +45,19 @@ describe('getBoxTint', () => {
 })
 
 describe('getCellClasses', () => {
-    it('selected cell includes amber background', () => {
+    it('selected cell includes selection background', () => {
         const result = getCellClasses(createParams({ selected: true }))
-        expect(result).toContain('bg-amber')
+        expect(result).toContain('bg-blue-200')
     })
 
-    it('given cell includes font-semibold', () => {
+    it('given cell includes font-bold', () => {
         const result = getCellClasses(createParams({ cell: givenCell }))
-        expect(result).toContain('font-semibold')
+        expect(result).toContain('font-bold')
     })
 
-    it('user cell includes text-blue-600', () => {
+    it('user cell includes text-blue-700', () => {
         const result = getCellClasses(createParams({ cell: userCell }))
-        expect(result).toContain('text-blue-600')
+        expect(result).toContain('text-blue-700')
     })
 
     it('conflict cell includes text-red-600', () => {
@@ -65,14 +65,13 @@ describe('getCellClasses', () => {
         expect(result).toContain('text-red-600')
     })
 
-    it('selected + digit highlight → amber wins over blue', () => {
+    it('selected + digit highlight → selection color wins', () => {
         const result = getCellClasses(createParams({
             cell: { value: 5, isGiven: false, hasConflict: false },
             selected: true,
             highlightDigit: 5,
         }))
-        expect(result).toContain('bg-amber')
-        expect(result).not.toContain('bg-blue-200')
+        expect(result).toContain('bg-blue-200')
     })
 
     it('conflict + selected → conflict text color present', () => {
