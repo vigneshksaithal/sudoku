@@ -26,7 +26,7 @@
     },
     "devDependencies": {
         "@devvit/start": "^0.12.15",
-        "@devvit/test": "^0.12.15",
+        "@devvit/test": "^0.12.16",
         "@sveltejs/vite-plugin-svelte": "^7.0.0",
         "@types/jsdom": "^28.0.1",
         "concurrently": "^9.2.1",
