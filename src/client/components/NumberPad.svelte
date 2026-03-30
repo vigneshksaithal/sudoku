@@ -50,7 +50,7 @@
             ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-700 dark:text-blue-400"
             : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200",
         ]}
-        style="min-height: 36px"
+        style="min-height: 44px"
         onclick={onToggleNotes}
         aria-pressed={!notesMode}
         aria-label="Normal mode"
@@ -64,7 +64,7 @@
             ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-700 dark:text-blue-400"
             : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200",
         ]}
-        style="min-height: 36px"
+        style="min-height: 44px"
         onclick={onToggleNotes}
         aria-pressed={notesMode}
         aria-label="Candidate mode"
@@ -107,7 +107,7 @@
     {#each DIGITS as num (num)}
       <button
         class={[
-          "flex items-center justify-center rounded-md min-h-9 text-lg font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-neutral-100 text-neutral-900 hover:bg-neutral-200 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600",
+          "flex items-center justify-center rounded-md min-h-12 text-xl font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-neutral-100 text-neutral-900 hover:bg-neutral-200 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600",
           lockedDigit === num
             ? "ring-2 ring-blue-500 bg-blue-100 dark:bg-blue-900/40"
             : isSolved(num) && "opacity-40",
@@ -120,7 +120,7 @@
       </button>
     {/each}
     <button
-      class="flex items-center justify-center rounded-md min-h-9 text-lg font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-800/50"
+      class="flex items-center justify-center rounded-md min-h-12 text-xl font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-800/50"
       onclick={onErase}
       aria-label="Erase cell"
     >
