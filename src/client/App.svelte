@@ -122,6 +122,7 @@
 		screen = "playing";
 		lockedDigit = null;
 		digitFirstMode = false;
+		startTimer();
 	};
 
 	const loadDifficultyBoard = (targetDifficulty: Difficulty): void => {
@@ -401,6 +402,7 @@
 			});
 			const json = await res.json();
 			if (json.valid) {
+				if (timerInterval) clearInterval(timerInterval)
 				screen = "completed";
 			} else {
 				validationMessage = "Not quite right — check your solution.";
@@ -458,6 +460,21 @@
 		loadDifficultyBoard(next);
 	};
 
+	let elapsedSeconds = $state(0)
+	let timerInterval: ReturnType<typeof setInterval> | null = null
+
+	const startTimer = () => {
+		elapsedSeconds = 0
+		if (timerInterval) clearInterval(timerInterval)
+		timerInterval = setInterval(() => elapsedSeconds++, 1000)
+	}
+
+	const formatTime = (s: number) => {
+		const m = Math.floor(s / 60)
+		const sec = s % 60
+		return `${m}:${sec.toString().padStart(2, '0')}`
+	}
+
 	const nextDifficulty = $derived(getNextDifficulty(difficulty));
 </script>
 
@@ -484,12 +501,12 @@
 		</div>
 	{:else if screen === "playing"}
 		<div
-			class="mx-auto flex h-full w-full max-w-4xl flex-col gap-2 px-2 py-2"
+			class="mx-auto flex h-full w-full max-w-2xl flex-col gap-1 px-2 py-1 sm:max-w-4xl sm:gap-2 sm:py-2"
 		>
-			<div class="flex shrink-0 items-center justify-center gap-1">
+			<div class="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:gap-2">
 				{#each VALID_DIFFICULTIES as d (d)}
 					<button
-						class="rounded-full px-2 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
+						class="rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 sm:px-4 sm:py-1.5 sm:text-sm
 							{d === difficulty
 							? 'bg-blue-600 text-white'
 							: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
@@ -500,30 +517,32 @@
 				{/each}
 			</div>
 
+			<div class="shrink-0 text-center font-mono text-sm tabular-nums text-neutral-400">
+				{formatTime(elapsedSeconds)}
+			</div>
+
 			<div
-				class="flex min-h-0 flex-1 flex-col items-center gap-2 sm:flex-row sm:items-start sm:justify-center"
+				class="flex min-h-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-center"
 			>
-				<!-- Grid area -->
+				<!-- Grid area: no flex-1 on mobile, grid is naturally sized -->
 				<div
-					class="flex w-full min-h-0 flex-1 flex-col items-center gap-2 sm:w-3/5 sm:flex-initial"
+					class="flex shrink-0 flex-col items-center sm:w-3/5 sm:flex-initial sm:flex-1"
 				>
-					<div
-						class="aspect-square w-full max-h-full sm:max-w-[min(60vh,100%)]"
-					>
-						<Grid
-							{board}
-							{selection}
-							{notesBoard}
-							{highlightDigit}
-							{techniqueHighlight}
-							hintDigit={activeHint?.action === "placement"
-								? activeHint.digit
-								: null}
-							onCellSelect={handleCellSelect}
-							onCellExtend={handleCellExtend}
-							onCellToggle={handleCellToggle}
-						/>
-					</div>
+					<div class="w-full" style="max-width: min(95vw, calc(100vh - 220px), 480px)">
+							<Grid
+								{board}
+								{selection}
+								{notesBoard}
+								{highlightDigit}
+								{techniqueHighlight}
+								hintDigit={activeHint?.action === "placement"
+									? activeHint.digit
+									: null}
+								onCellSelect={handleCellSelect}
+								onCellExtend={handleCellExtend}
+								onCellToggle={handleCellToggle}
+							/>
+						</div>
 					{#if activeHint !== null}
 						<div class="hidden w-full sm:block">
 							<HintPanel
@@ -588,7 +607,7 @@
 		>
 			<h1 class="text-3xl font-bold">🎉 Solved!</h1>
 			<p class="text-neutral-600 dark:text-neutral-400">
-				You completed the {difficulty} puzzle.
+				You completed the {difficulty} puzzle in <span class="font-mono font-semibold text-neutral-900 dark:text-neutral-100">{formatTime(elapsedSeconds)}</span>.
 			</p>
 			<button
 				class="min-h-11 min-w-11 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition-all hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"

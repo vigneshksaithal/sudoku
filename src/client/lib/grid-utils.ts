@@ -39,14 +39,21 @@ export const getCellClasses = (params: CellClassParams): string => {
 // --- Helpers (below callers) ---
 
 const BASE_CLASSES =
-    'flex aspect-square min-h-9 min-w-9 items-center justify-center border border-neutral-300 text-lg font-mono focus:outline-none dark:border-neutral-600'
+    'flex aspect-square min-h-9 min-w-9 items-center justify-center text-lg font-mono focus:outline-none'
 
 const getBorderClasses = (r: number, c: number): string[] => {
     const borders: string[] = []
-    if (r % 3 === 0) borders.push('border-t-2 border-t-neutral-800 dark:border-t-neutral-200')
-    if (c % 3 === 0) borders.push('border-l-2 border-l-neutral-800 dark:border-l-neutral-200')
-    if (r === 8) borders.push('border-b-2 border-b-neutral-800 dark:border-b-neutral-200')
-    if (c === 8) borders.push('border-r-2 border-r-neutral-800 dark:border-r-neutral-200')
+
+    // Box borders (thick) — every 3rd cell start + outer edges
+    if (r % 3 === 0) borders.push('border-t-[3px] border-t-neutral-800 dark:border-t-neutral-200')
+    if (c % 3 === 0) borders.push('border-l-[3px] border-l-neutral-800 dark:border-l-neutral-200')
+    if (r === 8) borders.push('border-b-[3px] border-b-neutral-800 dark:border-b-neutral-200')
+    if (c === 8) borders.push('border-r-[3px] border-r-neutral-800 dark:border-r-neutral-200')
+
+    // Cell borders (thin) — between cells within a box
+    if (r % 3 !== 0) borders.push('border-t border-t-neutral-300 dark:border-t-neutral-600')
+    if (c % 3 !== 0) borders.push('border-l border-l-neutral-300 dark:border-l-neutral-600')
+
     return borders
 }
 
@@ -96,5 +103,5 @@ const getBackgroundClass = (params: CellClassParams): string => {
 
 const getBoxTintClass = (r: number, c: number): string =>
     getBoxTint(r, c) === 'light'
-        ? 'bg-white dark:bg-neutral-800'
-        : 'bg-neutral-50 dark:bg-neutral-800/80'
+        ? 'bg-white dark:bg-neutral-900'
+        : 'bg-neutral-100 dark:bg-neutral-800'
