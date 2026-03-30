@@ -501,7 +501,7 @@
 		</div>
 	{:else if screen === "playing"}
 		<div
-			class="mx-auto flex h-full w-full max-w-2xl flex-col gap-2 px-2 py-2 sm:max-w-4xl"
+			class="mx-auto flex h-full w-full max-w-2xl flex-col gap-1 px-2 py-1 sm:max-w-4xl sm:gap-2 sm:py-2"
 		>
 			<div class="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:gap-2">
 				{#each VALID_DIFFICULTIES as d (d)}
@@ -524,12 +524,11 @@
 			<div
 				class="flex min-h-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-center"
 			>
-				<!-- Grid area -->
+				<!-- Grid area: no flex-1 on mobile, grid is naturally sized -->
 				<div
-					class="flex min-h-0 flex-1 flex-col items-center sm:w-3/5 sm:flex-initial"
+					class="flex shrink-0 flex-col items-center sm:w-3/5 sm:flex-initial sm:flex-1"
 				>
-					<div class="flex min-h-0 w-full flex-1 items-center justify-center">
-						<div class="aspect-square w-full max-h-full sm:max-w-[min(60vh,100%)]">
+					<div class="w-full" style="max-width: min(95vw, calc(100vh - 220px), 480px)">
 							<Grid
 								{board}
 								{selection}
@@ -544,7 +543,6 @@
 								onCellToggle={handleCellToggle}
 							/>
 						</div>
-					</div>
 					{#if activeHint !== null}
 						<div class="hidden w-full sm:block">
 							<HintPanel

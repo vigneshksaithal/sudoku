@@ -45,14 +45,14 @@ const getBorderClasses = (r: number, c: number): string[] => {
     const borders: string[] = []
 
     // Box borders (thick) — every 3rd cell start + outer edges
-    if (r % 3 === 0) borders.push('border-t-[3px] border-t-white/80 dark:border-t-white/80')
-    if (c % 3 === 0) borders.push('border-l-[3px] border-l-white/80 dark:border-l-white/80')
-    if (r === 8) borders.push('border-b-[3px] border-b-white/80 dark:border-b-white/80')
-    if (c === 8) borders.push('border-r-[3px] border-r-white/80 dark:border-r-white/80')
+    if (r % 3 === 0) borders.push('border-t-[3px] border-t-neutral-800 dark:border-t-neutral-200')
+    if (c % 3 === 0) borders.push('border-l-[3px] border-l-neutral-800 dark:border-l-neutral-200')
+    if (r === 8) borders.push('border-b-[3px] border-b-neutral-800 dark:border-b-neutral-200')
+    if (c === 8) borders.push('border-r-[3px] border-r-neutral-800 dark:border-r-neutral-200')
 
     // Cell borders (thin) — between cells within a box
-    if (r % 3 !== 0) borders.push('border-t border-t-neutral-600')
-    if (c % 3 !== 0) borders.push('border-l border-l-neutral-600')
+    if (r % 3 !== 0) borders.push('border-t border-t-neutral-300 dark:border-t-neutral-600')
+    if (c % 3 !== 0) borders.push('border-l border-l-neutral-300 dark:border-l-neutral-600')
 
     return borders
 }
