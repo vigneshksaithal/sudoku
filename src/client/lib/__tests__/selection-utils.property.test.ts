@@ -3,25 +3,23 @@ import { describe, it } from 'vitest'
 import {
     EMPTY_SELECTION,
     cellKey,
-    extendSelection,
+    clearSelection,
+    computeRectSelection,
     moveFocus,
     setSelection,
-    toggleSelection,
 } from '../selection-utils'
 import type { Selection } from '../selection-utils'
 
 // Arbitrary for valid grid coordinates [0,8]
 const validCoord = fc.integer({ min: 0, max: 8 })
 
-// Arbitrary for a valid Selection built by folding extendSelection over random cells
+// Arbitrary for a valid Selection built by computing a rectangular selection from two random coordinate pairs
 const validSelection = fc
-    .array(fc.tuple(validCoord, validCoord), { minLength: 0, maxLength: 10 })
-    .map((cells) =>
-        cells.reduce<Selection>(
-            (sel, [r, c]) => extendSelection(sel, r, c),
-            EMPTY_SELECTION,
-        ),
+    .tuple(
+        fc.tuple(validCoord, validCoord),
+        fc.tuple(validCoord, validCoord),
     )
+    .map(([anchor, current]) => computeRectSelection(anchor, current))
 
 // Arbitrary for delta values in {-1, 0, 1}
 const delta = fc.integer({ min: -1, max: 1 })
@@ -49,65 +47,26 @@ describe('selection-utils property tests', () => {
     })
 
     /**
-     * Feature: multi-cell-selection, Property 2
-     * extendSelection adds cell and preserves existing cells
-     * Validates: Requirements 2.1, 2.2
-     */
-    it('Property 2: extendSelection adds cell and preserves existing cells', () => {
-        fc.assert(
-            fc.property(validSelection, validCoord, validCoord, (selection, row, col) => {
-                const result = extendSelection(selection, row, col)
-                // result.cells is a superset of original selection.cells
-                const isSuperset = [...selection.cells].every((key) => result.cells.has(key))
-                // result.cells contains the new cell
-                const hasNewCell = result.cells.has(cellKey(row, col))
-                // focusCell equals [row, col]
-                const correctFocus =
-                    result.focusCell !== null &&
-                    result.focusCell[0] === row &&
-                    result.focusCell[1] === col
-                return isSuperset && hasNewCell && correctFocus
-            }),
-            { numRuns: 100 },
-        )
-    })
-
-    /**
-     * Feature: multi-cell-selection, Property 3
-     * toggleSelection is self-inverse
-     * Validates: Requirements 3.1
-     */
-    it('Property 3: toggleSelection is self-inverse', () => {
-        fc.assert(
-            fc.property(validSelection, validCoord, validCoord, (selection, row, col) => {
-                const once = toggleSelection(selection, row, col)
-                const twice = toggleSelection(once, row, col)
-                // cells set is restored to original (same size and same members)
-                if (twice.cells.size !== selection.cells.size) return false
-                return [...selection.cells].every((key) => twice.cells.has(key))
-            }),
-            { numRuns: 100 },
-        )
-    })
-
-    /**
-     * Feature: multi-cell-selection, Property 4
+     * Feature: rectangular-drag-select, Property 6
      * focusCell membership invariant
-     * Validates: Requirements 1.2, 2.2, 3.2, 3.3
+     * Validates: Requirements 1.3, 2.2
      */
     it('Property 4: focusCell membership invariant', () => {
-        // Arbitrary sequence of operations to apply
         type Op =
             | { type: 'set'; row: number; col: number }
-            | { type: 'extend'; row: number; col: number }
-            | { type: 'toggle'; row: number; col: number }
+            | { type: 'rect'; anchor: [number, number]; current: [number, number] }
             | { type: 'move'; dr: number; dc: number }
+            | { type: 'clear' }
 
         const op: fc.Arbitrary<Op> = fc.oneof(
             fc.record({ type: fc.constant('set' as const), row: validCoord, col: validCoord }),
-            fc.record({ type: fc.constant('extend' as const), row: validCoord, col: validCoord }),
-            fc.record({ type: fc.constant('toggle' as const), row: validCoord, col: validCoord }),
+            fc.record({
+                type: fc.constant('rect' as const),
+                anchor: fc.tuple(validCoord, validCoord),
+                current: fc.tuple(validCoord, validCoord),
+            }),
             fc.record({ type: fc.constant('move' as const), dr: delta, dc: delta }),
+            fc.record({ type: fc.constant('clear' as const) }),
         )
 
         const checkInvariant = (sel: Selection): boolean => {
@@ -127,14 +86,14 @@ describe('selection-utils property tests', () => {
                             case 'set':
                                 sel = setSelection(o.row, o.col)
                                 break
-                            case 'extend':
-                                sel = extendSelection(sel, o.row, o.col)
-                                break
-                            case 'toggle':
-                                sel = toggleSelection(sel, o.row, o.col)
+                            case 'rect':
+                                sel = computeRectSelection(o.anchor, o.current)
                                 break
                             case 'move':
                                 sel = moveFocus(sel.focusCell, o.dr, o.dc)
+                                break
+                            case 'clear':
+                                sel = clearSelection()
                                 break
                         }
                         if (!checkInvariant(sel)) return false

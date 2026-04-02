@@ -22,30 +22,20 @@ export const setSelection = (row: number, col: number): Selection => ({
     focusCell: [row, col],
 })
 
-export const extendSelection = (selection: Selection, row: number, col: number): Selection => ({
-    cells: new Set([...selection.cells, cellKey(row, col)]),
-    focusCell: [row, col],
-})
+export const computeRectSelection = (anchor: CellCoord, current: CellCoord): Selection => {
+    const minRow = Math.min(anchor[0], current[0])
+    const maxRow = Math.max(anchor[0], current[0])
+    const minCol = Math.min(anchor[1], current[1])
+    const maxCol = Math.max(anchor[1], current[1])
 
-export const toggleSelection = (selection: Selection, row: number, col: number): Selection => {
-    const key = cellKey(row, col)
-    const next = new Set(selection.cells)
-    if (next.has(key)) {
-        next.delete(key)
-        if (next.size === 0) return { cells: next, focusCell: null }
-        // If the removed cell was the focusCell, pick any remaining cell as new focus
-        const isFocusRemoved =
-            selection.focusCell !== null &&
-            selection.focusCell[0] === row &&
-            selection.focusCell[1] === col
-        if (isFocusRemoved) {
-            const remaining = next.values().next().value as string
-            return { cells: next, focusCell: parseKey(remaining) }
+    const cells = new Set<string>()
+    for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+            cells.add(cellKey(r, c))
         }
-        return { cells: next, focusCell: selection.focusCell }
     }
-    next.add(key)
-    return { cells: next, focusCell: [row, col] }
+
+    return { cells, focusCell: current }
 }
 
 export const clearSelection = (): Selection => EMPTY_SELECTION
@@ -58,5 +48,15 @@ export const moveFocus = (focusCell: CellCoord | null, dr: number, dc: number): 
 
 export const isSelected = (selection: Selection, row: number, col: number): boolean =>
     selection.cells.has(cellKey(row, col))
+
+export const cellFromPointer = (
+    clientX: number,
+    clientY: number,
+    gridRect: { left: number; top: number; width: number; height: number },
+): CellCoord => {
+    const row = Math.min(8, Math.max(0, Math.floor((clientY - gridRect.top) / (gridRect.height / 9))))
+    const col = Math.min(8, Math.max(0, Math.floor((clientX - gridRect.left) / (gridRect.width / 9))))
+    return [row, col] as const
+}
 
 export const isMultiSelection = (selection: Selection): boolean => selection.cells.size > 1

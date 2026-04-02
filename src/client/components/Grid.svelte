@@ -1,8 +1,13 @@
 <script lang="ts">
   import type { Selection } from "../lib/selection-utils";
-  import { isSelected } from "../lib/selection-utils";
+  import {
+    isSelected,
+    computeRectSelection,
+    cellFromPointer,
+  } from "../lib/selection-utils";
   import { getCellClasses } from "../lib/grid-utils";
   import type { CellState, NotesBoard, TechniqueHighlight } from "../lib/types";
+  import type { CellCoord } from "../lib/notes-utils";
 
   const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
@@ -14,8 +19,7 @@
     techniqueHighlight,
     hintDigit,
     onCellSelect,
-    onCellExtend,
-    onCellToggle,
+    onDragSelect,
   }: {
     board: CellState[][];
     notesBoard: NotesBoard;
@@ -24,8 +28,7 @@
     techniqueHighlight: TechniqueHighlight | null;
     hintDigit: number | null;
     onCellSelect: (row: number, col: number) => void;
-    onCellExtend: (row: number, col: number) => void;
-    onCellToggle: (row: number, col: number) => void;
+    onDragSelect: (selection: Selection) => void;
   } = $props();
 
   const isPrimaryCell = (r: number, c: number): boolean =>
@@ -64,6 +67,8 @@
   };
 
   let isDragging = $state(false);
+  let anchorCell: CellCoord | null = $state(null);
+  let gridEl: HTMLDivElement;
 
   const handlePointerDown = (
     e: PointerEvent,
@@ -71,39 +76,44 @@
     col: number,
   ): void => {
     e.preventDefault();
-    if (e.shiftKey) {
-      onCellToggle(row, col);
-    } else {
-      onCellSelect(row, col);
-    }
+    onCellSelect(row, col);
+    anchorCell = [row, col] as const;
     isDragging = true;
+    try {
+      gridEl.setPointerCapture(e.pointerId);
+    } catch {
+      // Pointer capture may fail with invalid pointer ID — fall back to uncaptured drag
+    }
   };
 
   const handlePointerMove = (e: PointerEvent): void => {
-    if (!isDragging) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el) return;
-    const rowAttr = el.getAttribute("data-row");
-    const colAttr = el.getAttribute("data-col");
-    if (rowAttr === null || colAttr === null) return;
-    const row = parseInt(rowAttr, 10);
-    const col = parseInt(colAttr, 10);
-    onCellExtend(row, col);
+    if (!isDragging || anchorCell === null) return;
+    const gridRect = gridEl.getBoundingClientRect();
+    const currentCell = cellFromPointer(e.clientX, e.clientY, gridRect);
+    const newSelection = computeRectSelection(anchorCell, currentCell);
+    onDragSelect(newSelection);
   };
 
-  const handlePointerUp = (): void => {
+  const handlePointerUp = (e: PointerEvent): void => {
+    if (!isDragging) return;
     isDragging = false;
+    anchorCell = null;
+    try {
+      gridEl.releasePointerCapture(e.pointerId);
+    } catch {
+      // Pointer capture may already be released
+    }
   };
 </script>
 
 <div
+  bind:this={gridEl}
   class="grid grid-cols-9 select-none touch-none border-2 border-neutral-800 dark:border-neutral-200"
   role="grid"
   aria-label="Sudoku grid"
   tabindex="-1"
   onpointermove={handlePointerMove}
   onpointerup={handlePointerUp}
-  onpointerleave={handlePointerUp}
 >
   {#each board as row, r (r)}
     {#each row as cell, c (c)}

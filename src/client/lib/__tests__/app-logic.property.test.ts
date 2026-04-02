@@ -3,7 +3,7 @@ import { SvelteSet } from 'svelte/reactivity'
 import { describe, it } from 'vitest'
 import { applyAutoCandidates, applyAutoNotes, applyMultiErase } from '../app-logic'
 import { captureSnapshot, restoreNotesBoard } from '../undo-stack'
-import { cellKey, extendSelection, parseKey } from '../selection-utils'
+import { cellKey, computeRectSelection, parseKey } from '../selection-utils'
 import type { Selection } from '../selection-utils'
 import type { CellState, NotesBoard } from '../types'
 
@@ -46,15 +46,13 @@ const notesBoardArb: fc.Arbitrary<NotesBoard> = fc.array(
 const cloneNotesBoard = (nb: NotesBoard): NotesBoard =>
     nb.map((row) => row.map((cell) => new SvelteSet(cell)))
 
-// Build a multi-selection (size >= 2) from a list of at least 2 distinct cells
+// Build a multi-selection (size >= 2) from two distinct coordinate pairs using computeRectSelection
 const multiSelectionArb: fc.Arbitrary<Selection> = fc
-    .array(fc.tuple(validCoord, validCoord), { minLength: 2, maxLength: 15 })
-    .map((cells) =>
-        cells.reduce<Selection>(
-            (sel, [r, c]) => extendSelection(sel, r, c),
-            { cells: new Set(), focusCell: null },
-        ),
+    .tuple(
+        fc.tuple(validCoord, validCoord),
+        fc.tuple(validCoord, validCoord),
     )
+    .map(([coord1, coord2]) => computeRectSelection(coord1, coord2))
     .filter((sel) => sel.cells.size >= 2)
 
 describe('app-logic property tests', () => {

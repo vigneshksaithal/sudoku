@@ -3,8 +3,8 @@ import {
     cellKey,
     parseKey,
     setSelection,
-    extendSelection,
-    toggleSelection,
+    computeRectSelection,
+    cellFromPointer,
     clearSelection,
     moveFocus,
     isSelected,
@@ -83,97 +83,106 @@ describe('setSelection — single-cell selection', () => {
     })
 })
 
-describe('extendSelection — adds cell and preserves existing', () => {
-    it('adds a new cell to an existing single-cell selection', () => {
-        const sel = setSelection(1, 1)
-        const extended = extendSelection(sel, 2, 2)
-        expect(extended.cells.size).toBe(2)
-        expect(extended.cells.has(cellKey(1, 1))).toBe(true)
-        expect(extended.cells.has(cellKey(2, 2))).toBe(true)
+describe('computeRectSelection — rectangular box selection', () => {
+    it('same cell → 1 cell', () => {
+        const sel = computeRectSelection([3, 4], [3, 4])
+        expect(sel.cells.size).toBe(1)
+        expect(sel.cells.has(cellKey(3, 4))).toBe(true)
+        expect(coordEq(sel.focusCell!, [3, 4])).toBe(true)
     })
 
-    it('updates focusCell to the newly added cell', () => {
-        const sel = setSelection(1, 1)
-        const extended = extendSelection(sel, 2, 2)
-        expect(coordEq(extended.focusCell!, [2, 2])).toBe(true)
+    it('full row (0,0)→(0,8) → 9 cells', () => {
+        const sel = computeRectSelection([0, 0], [0, 8])
+        expect(sel.cells.size).toBe(9)
+        for (let c = 0; c <= 8; c++) {
+            expect(sel.cells.has(cellKey(0, c))).toBe(true)
+        }
+        expect(coordEq(sel.focusCell!, [0, 8])).toBe(true)
     })
 
-    it('preserves all existing cells when adding a third cell', () => {
-        const sel = extendSelection(setSelection(0, 0), 0, 1)
-        const extended = extendSelection(sel, 0, 2)
-        expect(extended.cells.size).toBe(3)
-        expect(extended.cells.has(cellKey(0, 0))).toBe(true)
-        expect(extended.cells.has(cellKey(0, 1))).toBe(true)
-        expect(extended.cells.has(cellKey(0, 2))).toBe(true)
+    it('full column (0,0)→(8,0) → 9 cells', () => {
+        const sel = computeRectSelection([0, 0], [8, 0])
+        expect(sel.cells.size).toBe(9)
+        for (let r = 0; r <= 8; r++) {
+            expect(sel.cells.has(cellKey(r, 0))).toBe(true)
+        }
+        expect(coordEq(sel.focusCell!, [8, 0])).toBe(true)
     })
 
-    it('extending EMPTY_SELECTION adds the cell', () => {
-        const extended = extendSelection(EMPTY_SELECTION, 5, 5)
-        expect(extended.cells.size).toBe(1)
-        expect(extended.cells.has(cellKey(5, 5))).toBe(true)
-        expect(coordEq(extended.focusCell!, [5, 5])).toBe(true)
+    it('3×3 box (1,1)→(3,3) → 9 cells', () => {
+        const sel = computeRectSelection([1, 1], [3, 3])
+        expect(sel.cells.size).toBe(9)
+        for (let r = 1; r <= 3; r++) {
+            for (let c = 1; c <= 3; c++) {
+                expect(sel.cells.has(cellKey(r, c))).toBe(true)
+            }
+        }
+        expect(coordEq(sel.focusCell!, [3, 3])).toBe(true)
     })
 
-    it('is idempotent — extending with a cell already in the selection does not duplicate it', () => {
-        const sel = setSelection(3, 3)
-        const extended = extendSelection(sel, 3, 3)
-        expect(extended.cells.size).toBe(1)
-        expect(extended.cells.has(cellKey(3, 3))).toBe(true)
+    it('sets focusCell to the current (second) argument', () => {
+        const sel = computeRectSelection([0, 0], [2, 2])
+        expect(coordEq(sel.focusCell!, [2, 2])).toBe(true)
     })
 
-    it('idempotent extend still updates focusCell to the duplicate cell', () => {
-        const sel = extendSelection(setSelection(3, 3), 4, 4)
-        // extend back to (3,3) which is already in the set
-        const extended = extendSelection(sel, 3, 3)
-        expect(extended.cells.size).toBe(2)
-        expect(coordEq(extended.focusCell!, [3, 3])).toBe(true)
+    it('reversed anchor/current produces the same cells', () => {
+        const forward = computeRectSelection([1, 2], [4, 6])
+        const reversed = computeRectSelection([4, 6], [1, 2])
+        expect(forward.cells.size).toBe(reversed.cells.size)
+        for (const key of forward.cells) {
+            expect(reversed.cells.has(key)).toBe(true)
+        }
     })
 })
 
-describe('toggleSelection — adds when absent, removes when present', () => {
-    it('adds a cell when it is not in the selection', () => {
-        const sel = setSelection(0, 0)
-        const toggled = toggleSelection(sel, 1, 1)
-        expect(toggled.cells.has(cellKey(1, 1))).toBe(true)
+describe('cellFromPointer — pointer-to-cell coordinate conversion', () => {
+    // 450×450 grid → each cell is 50×50
+    const gridRect = { left: 100, top: 100, width: 450, height: 450 }
+
+    it('top-left corner of grid → (0,0)', () => {
+        const [row, col] = cellFromPointer(100, 100, gridRect)
+        expect(row).toBe(0)
+        expect(col).toBe(0)
     })
 
-    it('sets focusCell to the newly added cell', () => {
-        const sel = setSelection(0, 0)
-        const toggled = toggleSelection(sel, 1, 1)
-        expect(coordEq(toggled.focusCell!, [1, 1])).toBe(true)
+    it('bottom-right corner of grid → (8,8)', () => {
+        // Just inside the last cell: 100 + 449 = 549
+        const [row, col] = cellFromPointer(549, 549, gridRect)
+        expect(row).toBe(8)
+        expect(col).toBe(8)
     })
 
-    it('removes a cell when it is already in the selection', () => {
-        const sel = extendSelection(setSelection(0, 0), 1, 1)
-        const toggled = toggleSelection(sel, 1, 1)
-        expect(toggled.cells.has(cellKey(1, 1))).toBe(false)
+    it('outside grid — negative coords → clamps to (0,0)', () => {
+        const [row, col] = cellFromPointer(50, 50, gridRect)
+        expect(row).toBe(0)
+        expect(col).toBe(0)
     })
 
-    it('preserves other cells when removing one', () => {
-        const sel = extendSelection(setSelection(0, 0), 1, 1)
-        const toggled = toggleSelection(sel, 1, 1)
-        expect(toggled.cells.has(cellKey(0, 0))).toBe(true)
+    it('outside grid — beyond grid → clamps to (8,8)', () => {
+        const [row, col] = cellFromPointer(700, 700, gridRect)
+        expect(row).toBe(8)
+        expect(col).toBe(8)
     })
 
-    it('keeps focusCell on previous focusCell when removing a non-focus cell', () => {
-        // focusCell is (1,1), remove (0,0)
-        const sel = extendSelection(setSelection(0, 0), 1, 1)
-        const toggled = toggleSelection(sel, 0, 0)
-        expect(coordEq(toggled.focusCell!, [1, 1])).toBe(true)
+    it('cell boundary edge — exactly on column divider → next cell', () => {
+        // Column divider at x = 100 + 50 = 150 → col = floor((150-100)/50) = 1
+        const [row, col] = cellFromPointer(150, 100, gridRect)
+        expect(col).toBe(1)
+        expect(row).toBe(0)
     })
 
-    it('removing the only cell yields empty selection with null focusCell', () => {
-        const sel = setSelection(4, 4)
-        const toggled = toggleSelection(sel, 4, 4)
-        expect(toggled.cells.size).toBe(0)
-        expect(toggled.focusCell).toBeNull()
+    it('cell boundary edge — exactly on row divider → next cell', () => {
+        // Row divider at y = 100 + 50 = 150 → row = floor((150-100)/50) = 1
+        const [row, col] = cellFromPointer(100, 150, gridRect)
+        expect(row).toBe(1)
+        expect(col).toBe(0)
     })
 
-    it('toggling on EMPTY_SELECTION adds the cell', () => {
-        const toggled = toggleSelection(EMPTY_SELECTION, 2, 3)
-        expect(toggled.cells.size).toBe(1)
-        expect(toggled.cells.has(cellKey(2, 3))).toBe(true)
-        expect(coordEq(toggled.focusCell!, [2, 3])).toBe(true)
+    it('center of cell (4,4)', () => {
+        // Cell (4,4) center: x = 100 + 4*50 + 25 = 325, y = 100 + 4*50 + 25 = 325
+        const [row, col] = cellFromPointer(325, 325, gridRect)
+        expect(row).toBe(4)
+        expect(col).toBe(4)
     })
 })
 
@@ -279,10 +288,18 @@ describe('isSelected', () => {
         expect(isSelected(EMPTY_SELECTION, 4, 4)).toBe(false)
     })
 
-    it('returns true for all cells in a multi-cell selection', () => {
-        const sel = extendSelection(setSelection(0, 0), 1, 1)
+    it('returns true for all cells in a rectangular selection', () => {
+        const sel = computeRectSelection([0, 0], [1, 1])
         expect(isSelected(sel, 0, 0)).toBe(true)
+        expect(isSelected(sel, 0, 1)).toBe(true)
+        expect(isSelected(sel, 1, 0)).toBe(true)
         expect(isSelected(sel, 1, 1)).toBe(true)
+    })
+
+    it('returns false for cells outside a rectangular selection', () => {
+        const sel = computeRectSelection([0, 0], [1, 1])
+        expect(isSelected(sel, 2, 2)).toBe(false)
+        expect(isSelected(sel, 0, 2)).toBe(false)
     })
 })
 
@@ -295,13 +312,13 @@ describe('isMultiSelection', () => {
         expect(isMultiSelection(setSelection(4, 4))).toBe(false)
     })
 
-    it('returns true for a two-cell selection', () => {
-        const sel = extendSelection(setSelection(0, 0), 1, 1)
+    it('returns true for a two-cell rectangular selection', () => {
+        const sel = computeRectSelection([0, 0], [0, 1])
         expect(isMultiSelection(sel)).toBe(true)
     })
 
-    it('returns true for a three-cell selection', () => {
-        const sel = extendSelection(extendSelection(setSelection(0, 0), 1, 1), 2, 2)
+    it('returns true for a 3×3 rectangular selection', () => {
+        const sel = computeRectSelection([0, 0], [2, 2])
         expect(isMultiSelection(sel)).toBe(true)
     })
 })
