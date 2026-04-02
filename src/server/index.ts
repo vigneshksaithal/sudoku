@@ -12,6 +12,7 @@ import { createPost } from './post'
 import { DIFFICULTIES } from './lib/sudoku'
 
 const HTTP_STATUS_BAD_REQUEST = 400
+const HTTP_STATUS_INTERNAL_ERROR = 500
 
 type ValidDifficulty = (typeof DIFFICULTIES)[number]
 
@@ -100,6 +101,19 @@ app.post('/api/validate', async (c) => {
   }
 
   return c.json({ valid: board === solution })
+})
+
+// --- Scheduler: daily post ---
+
+app.post('/internal/scheduler/daily-post', async (c) => {
+  try {
+    await createPost()
+    return c.json({ status: 'ok' }, 200)
+  } catch (error) {
+    console.error('Failed to create daily post:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create daily post'
+    return c.json({ status: 'error', message: errorMessage }, HTTP_STATUS_INTERNAL_ERROR)
+  }
 })
 
 // --- GET /api/ping ---

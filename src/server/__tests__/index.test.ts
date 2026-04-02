@@ -49,3 +49,25 @@ test('POST /internal/on-app-install handles non-Error throws', async () => {
     expect(res.status).toBe(400)
     expect(json).toEqual({ status: 'error', message: 'Failed to create post' })
 })
+
+// --- Scheduler: daily-post ---
+
+test('POST /internal/scheduler/daily-post creates a post and returns ok', async () => {
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_daily' } as never)
+
+    const res = await app.request('/internal/scheduler/daily-post', { method: 'POST' })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toEqual({ status: 'ok' })
+})
+
+test('POST /internal/scheduler/daily-post returns 500 on failure', async () => {
+    vi.spyOn(reddit, 'submitCustomPost').mockRejectedValue(new Error('API down'))
+
+    const res = await app.request('/internal/scheduler/daily-post', { method: 'POST' })
+    const json = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(json).toEqual({ status: 'error', message: 'API down' })
+})
