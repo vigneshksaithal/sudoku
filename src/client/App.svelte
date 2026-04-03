@@ -21,6 +21,7 @@
 		isMultiSelection,
 		moveFocus,
 		setSelection,
+		toggleCellSelection,
 	} from "./lib/selection-utils";
 	import {
 		applyAutoNotes,
@@ -29,6 +30,7 @@
 		hasAutoCandidates,
 		clearAutoCandidates,
 		placeLockedDigit,
+		batchPlaceDigit,
 	} from "./lib/app-logic";
 	import {
 		DIFFICULTY_STORAGE_KEY,
@@ -217,6 +219,29 @@
 		selection = newSelection;
 	};
 
+	const handleShiftCellSelect = (row: number, col: number): void => {
+		selection = toggleCellSelection(selection, row, col);
+
+		// In digit-first mode with a locked digit and multi-selection, batch-place
+		if (
+			digitFirstMode &&
+			lockedDigit !== null &&
+			isMultiSelection(selection)
+		) {
+			undoStack = pushSnapshot(
+				undoStack,
+				captureSnapshot(board, notesBoard, hintsUsed),
+			);
+			if (notesMode) {
+				applyAutoNotes(board, notesBoard, selection, lockedDigit);
+			} else {
+				batchPlaceDigit(board, notesBoard, selection, lockedDigit);
+				board = updateConflicts(board);
+				checkCompletion();
+			}
+		}
+	};
+
 	const handleKeyDown = (e: KeyboardEvent): void => {
 		if ((e.ctrlKey || e.metaKey) && e.key === "z") {
 			e.preventDefault();
@@ -311,6 +336,21 @@
 			// Toggle locked digit: clear if same digit tapped again, otherwise lock
 			lockedDigit = lockedDigit === num ? null : num;
 			highlightDigit = lockedDigit;
+
+			// Batch-place into multi-selection when locking a digit
+			if (lockedDigit !== null && isMultiSelection(selection)) {
+				undoStack = pushSnapshot(
+					undoStack,
+					captureSnapshot(board, notesBoard, hintsUsed),
+				);
+				if (notesMode) {
+					applyAutoNotes(board, notesBoard, selection, lockedDigit);
+				} else {
+					batchPlaceDigit(board, notesBoard, selection, lockedDigit);
+					board = updateConflicts(board);
+					checkCompletion();
+				}
+			}
 			return;
 		}
 
@@ -541,6 +581,7 @@
 								: null}
 							onCellSelect={handleCellSelect}
 							onDragSelect={handleDragSelect}
+							onShiftCellSelect={handleShiftCellSelect}
 						/>
 					</div>
 					{#if activeHint !== null}

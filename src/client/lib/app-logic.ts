@@ -121,6 +121,32 @@ export const clearAutoCandidates = (
 }
 
 /**
+ * Place `digit` into every eligible cell in `selection`.
+ * Eligible = not a given cell. Overwrites existing values.
+ * Clears notes and cleans up peer notes for each placed cell.
+ * Mutates `board` and `notesBoard` in place.
+ * Returns the list of [row, col] pairs that received the digit.
+ */
+export const batchPlaceDigit = (
+    board: CellState[][],
+    notesBoard: NotesBoard,
+    selection: Selection,
+    digit: number,
+): ReadonlyArray<readonly [number, number]> => {
+    const placed: Array<readonly [number, number]> = []
+    for (const key of selection.cells) {
+        const [r, c] = parseKey(key)
+        const cell = board[r]?.[c]
+        if (!cell || cell.isGiven) continue
+        cell.value = digit
+        clearCellNotes(notesBoard, r, c)
+        cleanupNotes(notesBoard, r, c, digit)
+        placed.push([r, c] as const)
+    }
+    return placed
+}
+
+/**
  * Place `digit` into `board[row][col]` in digit-first mode.
  * Clears the cell's notes and removes the digit from all peer notes.
  * Returns `true` if placement occurred, `false` if skipped.

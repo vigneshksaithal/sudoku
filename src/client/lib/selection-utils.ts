@@ -60,3 +60,38 @@ export const cellFromPointer = (
 }
 
 export const isMultiSelection = (selection: Selection): boolean => selection.cells.size > 1
+
+export const toggleCellSelection = (
+    current: Selection,
+    row: number,
+    col: number,
+): Selection => {
+    const key = cellKey(row, col)
+
+    if (current.cells.size === 0) {
+        return { cells: new Set([key]), focusCell: [row, col] }
+    }
+
+    if (!current.cells.has(key)) {
+        const cells = new Set(current.cells)
+        cells.add(key)
+        return { cells, focusCell: [row, col] }
+    }
+
+    if (current.cells.size === 1) {
+        return current
+    }
+
+    // Cell is in selection and size > 1 — remove it
+    const cells = new Set(current.cells)
+    cells.delete(key)
+
+    const wasFocus =
+        current.focusCell !== null &&
+        current.focusCell[0] === row &&
+        current.focusCell[1] === col
+
+    const focusCell = wasFocus ? parseKey(cells.values().next().value!) : current.focusCell
+
+    return { cells, focusCell }
+}

@@ -20,6 +20,7 @@
     hintDigit,
     onCellSelect,
     onDragSelect,
+    onShiftCellSelect,
   }: {
     board: CellState[][];
     notesBoard: NotesBoard;
@@ -29,6 +30,7 @@
     hintDigit: number | null;
     onCellSelect: (row: number, col: number) => void;
     onDragSelect: (selection: Selection) => void;
+    onShiftCellSelect?: (row: number, col: number) => void;
   } = $props();
 
   const isPrimaryCell = (r: number, c: number): boolean =>
@@ -76,6 +78,10 @@
     col: number,
   ): void => {
     e.preventDefault();
+    if (e.shiftKey) {
+      onShiftCellSelect?.(row, col);
+      return;
+    }
     onCellSelect(row, col);
     anchorCell = [row, col] as const;
     isDragging = true;
