@@ -20,7 +20,7 @@
         "@devvit/web": "^0.12.17",
         "@hono/node-server": "^1.19.12",
         "@tailwindcss/vite": "^4.2.2",
-        "devvit": "^0.12.17",
+        "devvit": "^0.12.18",
         "hono": "^4.12.10",
         "tailwindcss": "^4.2.2"
     },
