@@ -1,6 +1,6 @@
 ---
 name: svelte-component
-description: Create a Svelte 5 component with optional data fetching. Use when adding UI components, views, interactive elements, or wiring client-side fetch to server endpoints.
+description: Create a Svelte 5 component with optional data fetching and Devvit client effects. Use when adding UI components, views, interactive elements, or wiring client-side fetch to server endpoints.
 ---
 
 # Add Svelte Component
@@ -55,6 +55,145 @@ description: Create a Svelte 5 component with optional data fetching. Use when a
 | `localStorage` | `fetch('/api/...')` |
 | `fetch('https://...')` | Server proxy endpoint |
 | Svelte 4 syntax (`$:`, `export let`) | Svelte 5 runes |
+
+## Devvit client effects
+
+Available from `@devvit/web/client` — use in response to user-initiated actions:
+
+```typescript
+import {
+  showToast,
+  showForm,
+  navigateTo,
+  requestExpandedMode,
+  getWebViewMode,
+  addWebViewModeListener,
+  removeWebViewModeListener,
+} from '@devvit/web/client'
+
+// For payments
+import { purchase, OrderResultStatus } from '@devvit/web/client'
+
+// For realtime
+import { connectRealtime } from '@devvit/web/client'
+```
+
+### Toast notifications
+
+```svelte
+<script lang="ts">
+  import { showToast } from '@devvit/web/client'
+
+  const handleAction = (): void => {
+    showToast('Action completed!')
+  }
+</script>
+```
+
+### Navigation
+
+```svelte
+<script lang="ts">
+  import { navigateTo } from '@devvit/web/client'
+
+  const goToSubreddit = (): void => {
+    navigateTo('https://www.reddit.com/r/webdev')
+  }
+</script>
+```
+
+### Forms (promise-based)
+
+```svelte
+<script lang="ts">
+  import { showForm } from '@devvit/web/client'
+
+  const handleShowForm = async (): Promise<void> => {
+    const result = await showForm({
+      form: {
+        fields: [
+          { type: 'string', name: 'username', label: 'Username' }
+        ],
+      },
+    })
+    if (result) {
+      console.log('Form submitted:', result.username)
+    }
+  }
+</script>
+```
+
+### Expanded mode (inline → fullscreen)
+
+```svelte
+<script lang="ts">
+  import { requestExpandedMode, getWebViewMode } from '@devvit/web/client'
+
+  let mode = $state(getWebViewMode()) // 'inline' | 'expanded'
+
+  const handleExpand = async (event: MouseEvent): Promise<void> => {
+    try {
+      await requestExpandedMode(event, 'game') // entrypoint name from devvit.json
+    } catch (e) {
+      console.error('Failed to expand:', e)
+    }
+  }
+</script>
+
+{#if mode === 'inline'}
+  <button onclick={handleExpand}>Play Game</button>
+{:else}
+  <!-- Full game UI -->
+{/if}
+```
+
+### Realtime (live updates)
+
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte'
+  import { connectRealtime } from '@devvit/web/client'
+
+  let messages = $state<string[]>([])
+
+  onMount(async () => {
+    const connection = await connectRealtime({
+      channel: 'game-updates',
+      onMessage: (data) => {
+        messages = [...messages, JSON.stringify(data)]
+      },
+      onConnect: (channel) => console.log(`Connected to ${channel}`),
+      onDisconnect: (channel) => console.log(`Disconnected from ${channel}`),
+    })
+
+    return () => {
+      connection.disconnect()
+    }
+  })
+</script>
+```
+
+### Payments
+
+```svelte
+<script lang="ts">
+  import { purchase, OrderResultStatus } from '@devvit/web/client'
+
+  let purchasing = $state(false)
+
+  const handleBuy = async (sku: string): Promise<void> => {
+    purchasing = true
+    try {
+      const result = await purchase(sku)
+      if (result.status === OrderResultStatus.STATUS_SUCCESS) {
+        // show success
+      }
+    } finally {
+      purchasing = false
+    }
+  }
+</script>
+```
 
 ## Fetch on mount pattern
 
@@ -141,4 +280,6 @@ description: Create a Svelte 5 component with optional data fetching. Use when a
 - [ ] `finally` block resets loading/submitting state
 - [ ] Error narrowing with `instanceof Error`
 - [ ] Response `status` field checked before accessing `data`
+- [ ] Client effects (`showToast`, `navigateTo`, etc.) only called from user-initiated actions
+- [ ] Realtime connections cleaned up in `onMount` return function
 - [ ] `bun run test` passes with zero failures

@@ -14,14 +14,35 @@ description: Add a new Hono API route or server-side utility. Use when adding en
 - Public client routes: `/api/kebab-case`
 - Devvit menu items: `/internal/menu/action-name`
 - Devvit triggers: `/internal/on-event-name`
+- Scheduler tasks: `/internal/cron/task-name`
+- Form submissions: `/internal/forms/form-name`
+- Payment handlers: `/internal/payments/fulfill` or `/internal/payments/refund`
 
-## Route handler pattern
+## Available server imports
 
 ```typescript
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { context, redis, reddit } from '@devvit/web/server'
+import { context, redis, reddit, realtime, cache, settings } from '@devvit/web/server'
+import { scheduler } from '@devvit/web/server'
+import { media } from '@devvit/media'
+import { notifications } from '@devvit/notifications'
+import { payments } from '@devvit/web/server'
+import type {
+  MenuItemRequest,
+  UiResponse,
+  TriggerResponse,
+  TaskRequest,
+  TaskResponse,
+  OnPostSubmitRequest,
+  OnCommentCreateRequest,
+  JsonObject,
+} from '@devvit/web/shared'
+```
 
+## Route handler pattern
+
+```typescript
 const HTTP_STATUS_BAD_REQUEST = 400
 const HTTP_STATUS_FORBIDDEN = 403
 const HTTP_STATUS_INTERNAL_ERROR = 500
@@ -45,11 +66,43 @@ app.get('/api/my-route', myHandler)
 ```typescript
 // Success: { status: 'success', data: { ... } }
 // Error:   { status: 'error', message: 'Human-readable string' }
-// Menu navigation: { navigateTo: 'https://reddit.com/...' }
 
 type SuccessResponse<T> = { status: 'success'; data: T }
 type ErrorResponse = { status: 'error'; message: string }
 type ApiResponse<T> = SuccessResponse<T> | ErrorResponse
+```
+
+### Menu item responses (UiResponse)
+
+Menu handlers return `UiResponse` from `@devvit/web/shared`:
+
+```typescript
+// Navigate
+return c.json<UiResponse>({ navigateTo: 'https://reddit.com/...' })
+
+// Toast
+return c.json<UiResponse>({ showToast: 'Action completed!' })
+
+// Show form (requires forms config in devvit.json)
+return c.json<UiResponse>({
+  showForm: {
+    name: 'myForm',
+    form: { fields: [{ type: 'string', name: 'input', label: 'Value' }] },
+    data: { input: 'default' }
+  }
+})
+```
+
+### Trigger responses
+
+```typescript
+return c.json<TriggerResponse>({ status: 'ok' })
+```
+
+### Scheduler task responses
+
+```typescript
+return c.json<TaskResponse>({ status: 'ok' })
 ```
 
 ## Context guard helpers
@@ -104,7 +157,6 @@ const handler = async (c: Context): Promise<Response> => {
     return c.json({ status: 'error', message: 'Invalid request body' }, HTTP_STATUS_BAD_REQUEST)
   }
 
-  // Validate each field — never spread or destructure blindly
   const { guess } = body as Record<string, unknown>
   if (typeof guess !== 'string' || guess.length === 0 || guess.length > 200) {
     return c.json({ status: 'error', message: 'Invalid guess' }, HTTP_STATUS_BAD_REQUEST)
@@ -135,12 +187,6 @@ const parseSubmitGuess = (raw: unknown): SubmitGuessInput | null => {
   if (typeof difficulty !== 'string') return null
   if (!VALID_DIFFICULTIES.includes(difficulty as typeof VALID_DIFFICULTIES[number])) return null
   return { guess, difficulty: difficulty as SubmitGuessInput['difficulty'] }
-}
-
-// Usage:
-const input = parseSubmitGuess(await c.req.json().catch(() => null))
-if (!input) {
-  return c.json({ status: 'error', message: 'Invalid input' }, HTTP_STATUS_BAD_REQUEST)
 }
 ```
 
@@ -174,14 +220,23 @@ if (owner !== userId) {
 
 ---
 
+## Platform limits
+
+| Limit | Value |
+|---|---|
+| Max request time | 30 seconds |
+| Max request payload | 4 MB |
+| Max response size | 10 MB |
+
 ## Constraints
 - Functions ≤30 lines, single responsibility
 - No `setInterval`, no long-running processes (30s request timeout)
 - No filesystem access — use Redis or `media.upload()`
 - No native Node modules (sharp, ffmpeg) — use external services
+- All server endpoints must start with `/api/` (client-facing) or `/internal/` (platform)
 
 ## Checklist before finishing
-- [ ] Tests written FIRST in `src/server/__tests__/` using `bun:test` and devvit-mocks
+- [ ] Tests written FIRST in `src/server/__tests__/` using `@devvit/test`
 - [ ] Handler is an arrow function with explicit return type
 - [ ] try/catch with `instanceof Error` narrowing
 - [ ] HTTP status uses named constant, not magic number
@@ -192,4 +247,5 @@ if (owner !== userId) {
 - [ ] No raw user input in Redis keys
 - [ ] Identity from `context.userId`, never from request body
 - [ ] Response contains only client-necessary fields
+- [ ] Typed request/response types used for menu/trigger/scheduler handlers
 - [ ] `bun run test` passes with zero failures

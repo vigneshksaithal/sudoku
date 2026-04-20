@@ -23,7 +23,10 @@ Available skills in `.agents/skills/`:
 | `redis-schema/SKILL.md` | Any Redis key/data structure changes |
 | `reddit-api/SKILL.md` | Interacting with Reddit API |
 | `devvit-config/SKILL.md` | Devvit configuration changes |
-| `devvit-viewport/SKILL.md` | Any UI layout, sizing, or visual design work |
+| `realtime/SKILL.md` | Live updates, multiplayer, event-driven features |
+| `scheduler/SKILL.md` | Cron jobs, delayed tasks, timed events |
+| `media-uploads/SKILL.md` | Uploading images to Reddit at runtime |
+| `settings-secrets/SKILL.md` | App settings, API keys, moderator config |
 
 ### Step 2: Clarify Requirements
 
@@ -36,26 +39,6 @@ Ask the user questions until you are ≥90% confident in the implementation appr
 - Do not proceed until ≥90% confident. It is better to ask one extra question than to build the wrong thing.
 
 **Done when:** You can describe the exact changes you'll make, which files you'll touch, and what the expected behavior is — and the user confirms.
-
-### Step 2.5: Think with Sequential Thinking MCP
-
-Before planning, use the `mcp_sequential_thinking_sequentialthinking` tool to reason through the problem.
-
-**When to use it:**
-- The request touches multiple files or systems
-- You're unsure about the right approach or architecture
-- There are non-obvious edge cases or tradeoffs
-- The full scope of the change isn't clear yet
-
-**How it works:**
-Call the sequential thinking tool once per thought step. Each call takes:
-- `thought` — your current reasoning step (what you're figuring out right now)
-- `thoughtNumber` / `totalThoughts` — where you are (totalThoughts is an estimate, adjust it up if needed)
-- `nextThoughtNeeded` — `true` to keep going, `false` when done
-
-You can revise earlier thoughts (`isRevision: true, revisesThought: N`) or branch into alternative approaches (`branchFromThought`, `branchId`). Keep going until you've landed on a clear, confident plan.
-
-**Done when:** You've worked through the problem, considered edge cases, and can describe the exact approach with confidence.
 
 ### Step 3: Plan
 
@@ -233,7 +216,7 @@ src/
 
 Data flow: `User Action → Svelte → fetch('/api/...') → Hono → Redis/Reddit API → Response → UI`
 
-Key packages: Svelte 5.x, Tailwind CSS 4.x, Hono, TypeScript 5.x, Vite 8.x, @devvit/web 0.12.x, Bun
+Key packages: Svelte 5.x, Tailwind CSS 4.x, Hono, TypeScript 6.x, Vite 8.x, @devvit/web 0.12.x, Bun
 
 ---
 
@@ -243,11 +226,11 @@ Key packages: Svelte 5.x, Tailwind CSS 4.x, Hono, TypeScript 5.x, Vite 8.x, @dev
 
 Use MCP tools proactively — they give better answers than guessing.
 
-**Sequential Thinking MCP:** Use the sequential thinking tool for structured reasoning before planning. Use it on any non-trivial problem — call it step-by-step until `nextThoughtNeeded: false`. See Step 2.5 above.
-
 **Svelte MCP:** `list-sections` → `get-documentation` → write code → `svelte-autofixer` (loop until zero issues)
 
 **Devvit MCP:** `devvit_search` for any Devvit/Redis/Reddit API question. Natural language queries work well.
+
+**Sequential Thinking MCP:** `sequentialthinking` for breaking down complex problems into step-by-step reasoning chains. Use when facing multi-step logic, architectural decisions, debugging complex issues, or any task that benefits from structured thinking before acting.
 
 ### Web Search
 

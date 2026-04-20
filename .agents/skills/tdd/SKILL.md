@@ -22,7 +22,7 @@ bun run test              # run all tests once
 bun run test:watch        # watch mode (dev only)
 ```
 
-`@devvit/test` provides a miniature Devvit backend per test — in-memory Redis, Reddit API mocks, Scheduler, Realtime, and per-test isolation. No manual mock setup needed.
+`@devvit/test` provides a miniature Devvit backend per test — in-memory Redis, Reddit API mocks, Scheduler, Realtime, Media, Notifications, and per-test isolation. No manual mock setup needed.
 
 ## File placement
 
@@ -47,9 +47,13 @@ Test files: `*.test.ts` — colocated in `__tests__/` directories next to the co
 
 ```typescript
 import { createDevvitTest } from '@devvit/test/server/vitest'
-import { redis, reddit, context } from '@devvit/web/server'
+import { redis } from '@devvit/redis'
+import { reddit } from '@devvit/reddit'
+import { realtime } from '@devvit/web/server'
 import { expect, vi } from 'vitest'
 ```
+
+**Important:** In test files, use `@devvit/redis` and `@devvit/reddit` for Redis and Reddit imports. The test harness resolves these correctly. For other capabilities, use `@devvit/web/server`.
 
 ## Test setup with @devvit/test
 
@@ -77,7 +81,20 @@ const test = createDevvitTest({
   username: 'testuser',
   userId: 't2_testuser',
   subredditName: 'testsub',
+  subredditId: 't5_testsub',
   settings: { 'my-setting': 'value' },
+})
+```
+
+## Test fixtures and mocks
+
+Each test receives Devvit-specific fixtures as arguments:
+
+```typescript
+test('uses fixtures', async ({ mocks, userId, subredditName }) => {
+  // userId = 't2_testuser' (from config)
+  // subredditName = 'testsub' (from config)
+  // mocks = object with helpers for inspecting mock state
 })
 ```
 
@@ -111,6 +128,17 @@ test('leaderboard sorted set', async () => {
   const top = await redis.zRange('leaderboard', 0, 1, { by: 'rank', reverse: true })
   expect(top.map((e) => e.member)).toEqual(['bob', 'alice'])
 })
+
+test('commits redis transactions', async () => {
+  await redis.set('txn', '0')
+  const txn = await redis.watch('txn')
+  await txn.multi()
+  await txn.incrBy('txn', 4)
+  await txn.incrBy('txn', 1)
+  const results = await txn.exec()
+  expect(results).toStrictEqual([4, 5])
+  expect(await redis.get('txn')).toBe('5')
+})
 ```
 
 ## Mocking Reddit API
@@ -137,6 +165,81 @@ test('fetches a user', async ({ mocks }) => {
 })
 ```
 
+## Testing Realtime
+
+```typescript
+import { realtime } from '@devvit/web/server'
+
+test('emits realtime events', async ({ mocks }) => {
+  await realtime.send('scores', { latest: 42 })
+  const messages = mocks.realtime.getSentMessagesForChannel('scores')
+  expect(messages).toHaveLength(1)
+  expect(messages[0].data?.msg).toStrictEqual({ latest: 42 })
+})
+```
+
+## Testing Media uploads
+
+```typescript
+import { media } from '@devvit/media'
+
+test('uploads media assets', async ({ mocks }) => {
+  const response = await media.upload({
+    url: 'https://example.com/image.png',
+    type: 'image',
+  })
+  expect(response.mediaId).toBe('media-1')
+  expect(mocks.media.uploads).toHaveLength(1)
+})
+```
+
+## Testing Notifications
+
+```typescript
+import { notifications } from '@devvit/notifications'
+
+test('sends push notifications', async ({ mocks, userId }) => {
+  await notifications.optInCurrentUser()
+  await notifications.enqueue({
+    title: 'Hello',
+    body: 'World',
+    recipients: [{ userId }],
+  })
+  const sent = mocks.notifications.getSentNotifications()
+  expect(sent).toHaveLength(1)
+  expect(sent[0].title).toBe('Hello')
+})
+```
+
+## Testing HTTP (blocked by default)
+
+HTTP requests throw by default in tests. Mock `globalThis.fetch` to test code that makes HTTP calls:
+
+```typescript
+test('mocks external HTTP', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ data: 'test' }), { status: 200 })
+  )
+  const res = await fetch('https://api.example.com/data')
+  expect(res.status).toBe(200)
+  vi.restoreAllMocks()
+})
+```
+
+## Capability support matrix
+
+| Capability | Status | Notes |
+|---|---|---|
+| Redis | ✅ Supported | Per-test isolation; transactions supported |
+| Scheduler | ✅ Supported | Jobs listed immediately; time does not advance |
+| Settings | ✅ Supported | Per-test isolation; configurable defaults |
+| Realtime | ✅ Supported | In-memory recording of sent/received messages |
+| Media | ✅ Supported | In-memory uploads with synthetic IDs/URLs |
+| Notifications | ✅ Supported | In-memory recording |
+| HTTP | ✅ Blocked by default | Mock `fetch` to allow |
+| Reddit API | ⚠️ Partial | Helpful errors for unimplemented methods |
+| Payments | ❌ Not yet | — |
+
 ## What to test
 
 | Layer | What to test | Mocking approach |
@@ -160,4 +263,5 @@ test('fetches a user', async ({ mocks }) => {
 - [ ] All edge cases covered (undefined, empty, invalid input)
 - [ ] Error paths tested (throws, rejects, error responses)
 - [ ] Test names describe behavior, not implementation
+- [ ] HTTP calls mocked with `vi.spyOn(globalThis, 'fetch')`
 - [ ] `bun run test` passes with zero failures
