@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { boardToString, countDigitPlacements, hasConflict, isComplete, parseBoard, updateConflicts } from '../sudoku-utils'
+import { boardToString, computeCollisionConflicts, countDigitPlacements, hasConflict, isComplete, parseBoard, updateConflicts } from '../sudoku-utils'
 import type { CellState } from '../types'
 
 // --- parseBoard ---
@@ -225,6 +225,77 @@ describe('countDigitPlacements', () => {
         const snapshot = board.map((row) => row.map((cell) => ({ ...cell })))
         countDigitPlacements(board)
 
+        board.forEach((row, r) => {
+            row.forEach((cell, c) => {
+                expect(cell).toEqual(snapshot[r]![c])
+            })
+        })
+    })
+})
+
+// --- computeCollisionConflicts ---
+
+describe('computeCollisionConflicts', () => {
+    const makeBoard = (values: number[][]): CellState[][] =>
+        values.map((row) =>
+            row.map((value) => ({ value, isGiven: value !== 0, hasConflict: false }))
+        )
+
+    const emptyValues = (): number[][] => Array.from({ length: 9 }, () => Array(9).fill(0))
+
+    test('empty board returns all hasConflict: false', () => {
+        const board = makeBoard(emptyValues())
+        const result = computeCollisionConflicts(board)
+        expect(result.every((row) => row.every((cell) => cell.hasConflict === false))).toBe(true)
+    })
+
+    test('duplicate in a row flags both cells', () => {
+        const values = emptyValues()
+        values[0]![0] = 5
+        values[0]![1] = 5
+        const board = makeBoard(values)
+        const result = computeCollisionConflicts(board)
+        expect(result[0]![0]!.hasConflict).toBe(true)
+        expect(result[0]![1]!.hasConflict).toBe(true)
+        expect(result[0]![2]!.hasConflict).toBe(false)
+    })
+
+    test('duplicate in a column flags both cells', () => {
+        const values = emptyValues()
+        values[0]![0] = 3
+        values[1]![0] = 3
+        const board = makeBoard(values)
+        const result = computeCollisionConflicts(board)
+        expect(result[0]![0]!.hasConflict).toBe(true)
+        expect(result[1]![0]!.hasConflict).toBe(true)
+        expect(result[2]![0]!.hasConflict).toBe(false)
+    })
+
+    test('duplicate in a box flags both cells', () => {
+        const values = emptyValues()
+        values[0]![0] = 7
+        values[1]![1] = 7
+        const board = makeBoard(values)
+        const result = computeCollisionConflicts(board)
+        expect(result[0]![0]!.hasConflict).toBe(true)
+        expect(result[1]![1]!.hasConflict).toBe(true)
+        expect(result[2]![2]!.hasConflict).toBe(false)
+    })
+
+    test('board with no duplicates returns all hasConflict: false', () => {
+        const str = '123456789456789123789123456214365897365897214897214365531642978642978531978531642'
+        const board = parseBoard(str)
+        const result = computeCollisionConflicts(board)
+        expect(result.every((row) => row.every((cell) => cell.hasConflict === false))).toBe(true)
+    })
+
+    test('does not mutate input board', () => {
+        const values = emptyValues()
+        values[0]![0] = 5
+        values[0]![1] = 5
+        const board = makeBoard(values)
+        const snapshot = board.map((row) => row.map((cell) => ({ ...cell })))
+        computeCollisionConflicts(board)
         board.forEach((row, r) => {
             row.forEach((cell, c) => {
                 expect(cell).toEqual(snapshot[r]![c])

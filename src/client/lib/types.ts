@@ -6,6 +6,8 @@ export type GameScreen = 'playing' | 'completed'
 
 export type InputMode = 'cell-first' | 'digit-first'
 
+export type ErrorMode = 'error-highlight' | 'collision-only'
+
 export type CellState = {
     value: number
     isGiven: boolean
