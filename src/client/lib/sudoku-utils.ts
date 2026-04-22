@@ -40,16 +40,6 @@ export const updateConflicts = (board: CellState[][]): CellState[][] =>
         row.map((cell, c) => ({ ...cell, hasConflict: hasConflict(board, r, c) }))
     )
 
-/**
- * Return a new board with hasConflict set only for cells that share the same digit
- * with another cell in the same row, column, or 3×3 box (collision-only mode).
- * Does not compare against the solution. Does not mutate input.
- */
-export const computeCollisionConflicts = (board: CellState[][]): CellState[][] =>
-    board.map((row, r) =>
-        row.map((cell, c) => ({ ...cell, hasConflict: hasConflict(board, r, c) }))
-    )
-
 /** True when every cell is filled (non-zero) and no cell has a conflict. */
 export const isComplete = (board: CellState[][]): boolean =>
     board.every((row) => row.every((cell) => cell.value !== 0 && !cell.hasConflict))

@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as fc from 'fast-check'
 import { JSDOM } from 'jsdom'
+import { VALID_DIFFICULTIES } from '../../lib/constants'
 
 const mockRequestExpandedMode = vi.fn()
-const mockConnectRealtime = vi.fn().mockResolvedValue({
-    disconnect: vi.fn().mockResolvedValue(undefined),
-})
 
 vi.mock('@devvit/web/client', () => ({
     requestExpandedMode: mockRequestExpandedMode,
-    connectRealtime: mockConnectRealtime,
 }))
 
 const setupEnv = (): { dom: JSDOM; store: Map<string, string> } => {
@@ -30,71 +28,65 @@ beforeEach(async () => {
     const { store } = setupEnv()
     store.clear()
     mockRequestExpandedMode.mockClear()
-    mockConnectRealtime.mockClear()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-            status: 'success',
-            data: {
-                channel: 'sudoku_t3_testpost',
-                featuredRace: {
-                    title: 'Sudoku Daily Race',
-                    difficulty: 'intermediate',
-                    puzzle: '0'.repeat(81),
-                    solverCount: 12,
-                    createdAt: 1713571200000,
-                },
-                topPlayers: [
-                    { username: 'player1', adjustedTime: 225, rank: 1 },
-                    { username: 'player2', adjustedTime: 240, rank: 2 },
-                    { username: 'player3', adjustedTime: 255, rank: 3 },
-                ],
-                recentCompletions: [],
-                playerProfile: {
-                    currentStreak: 4,
-                    freezeCount: 1,
-                },
-            },
-        }),
-    }))
     vi.resetModules()
     await import('../main')
-    await Promise.resolve()
 })
 
 describe('Preview screen DOM', () => {
-    it('renders the title "Sudoku Daily Race"', () => {
+    it('renders the title "Sudoku"', () => {
         const h1 = document.querySelector('h1')
-        expect(h1?.textContent).toContain('Sudoku')
+        expect(h1?.textContent).toBe('Sudoku')
     })
 
-    it('renders a single primary call to action for the featured race', () => {
+    it('renders four buttons with correct labels (simple, easy, intermediate, expert)', () => {
         const buttons = document.querySelectorAll('button')
-        expect(buttons).toHaveLength(1)
-        expect(buttons[0]?.textContent).toContain("Play Today's Race")
+        expect(buttons).toHaveLength(4)
+        const labels = Array.from(buttons).map((b) => b.textContent)
+        expect(labels).toEqual(['simple', 'easy', 'intermediate', 'expert'])
+    })
+})
+
+// Property 3: Preview button click stores difficulty before requesting expanded mode
+// Validates: Requirements 2.5, 4.1
+describe('Property 3: Preview button click stores difficulty before requesting expanded mode', () => {
+    it('for each valid difficulty, click stores it in localStorage and calls requestExpandedMode(event, "game")', () => {
+        fc.assert(
+            fc.property(fc.constantFrom(...VALID_DIFFICULTIES), (difficulty) => {
+                localStorage.removeItem('sudoku-difficulty')
+                mockRequestExpandedMode.mockClear()
+
+                const buttons = Array.from(document.querySelectorAll('button'))
+                const btn = buttons.find((b) => b.textContent === difficulty)
+                expect(btn).toBeDefined()
+
+                btn!.click()
+
+                expect(localStorage.getItem('sudoku-difficulty')).toBe(difficulty)
+                expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
+                expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
+            })
+        )
     })
 
-    it('renders featured difficulty, live solver count, and leaderboard preview from /api/preview-state', () => {
-        expect(document.body.textContent).toContain('intermediate')
-        expect(document.body.textContent).toContain('12 solvers')
-        expect(document.body.textContent).toContain('player1')
-        expect(document.body.textContent).toContain('4-day streak')
-    })
-
-    it('subscribes to realtime updates for the current post channel', () => {
-        expect(mockConnectRealtime).toHaveBeenCalledWith(expect.objectContaining({
-            channel: 'sudoku_t3_testpost',
-        }))
-    })
-
-    it('click stores the featured difficulty before requesting expanded mode', () => {
-        localStorage.removeItem('sudoku-difficulty')
+    it('still requests expanded mode when localStorage write throws', async () => {
         mockRequestExpandedMode.mockClear()
+        vi.stubGlobal('localStorage', {
+            getItem: (): string | null => null,
+            setItem: (): void => {
+                throw new Error('storage unavailable')
+            },
+            removeItem: (): void => {},
+            clear: (): void => {},
+        })
+
+        vi.resetModules()
+        await import('../main')
+
         const firstButton = document.querySelector('button')
         expect(firstButton).toBeDefined()
+
         firstButton!.click()
 
-        expect(localStorage.getItem('sudoku-difficulty')).toBe('intermediate')
         expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
         expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
     })

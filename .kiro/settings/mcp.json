@@ -1,15 +1,19 @@
 {
   "mcpServers": {
     "svelte": {
+      "type": "remote",
       "url": "https://mcp.svelte.dev/mcp",
       "autoApprove": [
         "list-sections",
         "get-documentation",
         "svelte-autofixer",
+        "svelte-autofixer",
+        "svelte-autofixer",
         "playground-link"
       ]
     },
     "devvit": {
+      "type": "local",
       "command": "npx",
       "args": [
         "-y",

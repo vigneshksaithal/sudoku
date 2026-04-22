@@ -18,18 +18,6 @@
     "dir": "dist/server",
     "entry": "index.cjs"
   },
-  "permissions": {
-    "redis": true,
-    "media": true,
-    "realtime": true,
-    "reddit": {
-      "scope": "moderator",
-      "asUser": [
-        "SUBMIT_COMMENT",
-        "SUBSCRIBE_TO_SUBREDDIT"
-      ]
-    }
-  },
   "menu": {
     "items": [
       {
@@ -42,94 +30,13 @@
     ]
   },
   "triggers": {
-    "onAppInstall": "/internal/on-app-install",
-    "onPostCreate": "/internal/on-post-create"
+    "onAppInstall": "/internal/on-app-install"
   },
   "scheduler": {
     "tasks": {
       "daily-post": {
-        "endpoint": "/internal/cron/daily-post",
-        "cron": "0 * * * *"
-      },
-      "weekly-roundup": {
-        "endpoint": "/internal/cron/weekly-roundup",
-        "cron": "0 * * * *"
-      }
-    }
-  },
-  "settings": {
-    "subreddit": {
-      "featuredDifficulty": {
-        "type": "select",
-        "label": "Featured race difficulty",
-        "helpText": "Choose which difficulty powers the public daily race.",
-        "defaultValue": "intermediate",
-        "options": [
-          {
-            "label": "Simple",
-            "value": "simple"
-          },
-          {
-            "label": "Easy",
-            "value": "easy"
-          },
-          {
-            "label": "Intermediate",
-            "value": "intermediate"
-          },
-          {
-            "label": "Expert",
-            "value": "expert"
-          }
-        ]
-      },
-      "dailyPostHourUtc": {
-        "type": "number",
-        "label": "Daily post hour (UTC)",
-        "helpText": "The scheduler checks hourly and creates the daily post when the current UTC hour matches this value.",
-        "defaultValue": 8
-      },
-      "weeklyRoundupDay": {
-        "type": "select",
-        "label": "Weekly roundup day",
-        "helpText": "Choose the weekday for the automated weekly roundup post.",
-        "defaultValue": "mon",
-        "options": [
-          {
-            "label": "Sunday",
-            "value": "sun"
-          },
-          {
-            "label": "Monday",
-            "value": "mon"
-          },
-          {
-            "label": "Tuesday",
-            "value": "tue"
-          },
-          {
-            "label": "Wednesday",
-            "value": "wed"
-          },
-          {
-            "label": "Thursday",
-            "value": "thu"
-          },
-          {
-            "label": "Friday",
-            "value": "fri"
-          },
-          {
-            "label": "Saturday",
-            "value": "sat"
-          }
-        ]
-      },
-      "winnerFlairEnabled": {
-        "type": "boolean",
-        "label": "Enable weekly winner flair",
-        "helpText": "Turn this on only in communities where replacing user flair is acceptable.",
-        "defaultValue": false
+        "endpoint": "/internal/scheduler/daily-post",
+        "cron": "30 8 * * *"
       }
     }
   },

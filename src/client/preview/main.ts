@@ -1,481 +1,201 @@
-import { connectRealtime, requestExpandedMode } from '@devvit/web/client'
-
-import { DIFFICULTY_STORAGE_KEY } from '../lib/constants'
+import { requestExpandedMode } from '@devvit/web/client'
+import { DIFFICULTY_STORAGE_KEY, VALID_DIFFICULTIES } from '../lib/constants'
 import type { Difficulty } from '../lib/types'
-import type { LeaderboardEntry, RecentCompletionEvent } from '../../shared/community'
 import '../app.css'
 
-type PreviewState = {
-    channel: string
-    featuredRace: {
-        title: string
-        difficulty: Difficulty
-        solverCount: number
-        createdAt: number
-    }
-    topPlayers: LeaderboardEntry[]
-    recentCompletions: RecentCompletionEvent[]
-    playerProfile: {
-        currentStreak: number
-        freezeCount: number
-    }
-}
-
-type PreviewResponse = {
-    status: 'success'
-    data: PreviewState
-} | {
-    status: 'error'
-    message: string
-}
-
-type CompletionMessage = {
-    type: 'completion'
-    username: string
-    adjustedTime: number
-    rank: number | null
-    solverCount?: number
-}
-
-type PreviewElements = {
-    solverCount: HTMLElement
-    recentFeed: HTMLElement
-}
-
-const MAX_FEED_EVENTS = 3
+// Sample puzzle for decorative grid — partial fill looks like a real game in progress
+const SAMPLE_GRID = [
+    [5, 3, 0, 0, 7, 0, 0, 0, 0],
+    [6, 0, 0, 1, 9, 5, 0, 0, 0],
+    [0, 9, 8, 0, 0, 0, 0, 6, 0],
+    [8, 0, 0, 0, 6, 0, 0, 0, 3],
+    [4, 0, 0, 8, 0, 3, 0, 0, 1],
+    [7, 0, 0, 0, 2, 0, 0, 0, 6],
+    [0, 6, 0, 0, 0, 0, 2, 8, 0],
+    [0, 0, 0, 4, 1, 9, 0, 0, 5],
+    [0, 0, 0, 0, 8, 0, 0, 7, 9],
+] as const
 
 const injectStyles = (): void => {
     const style = document.createElement('style')
     style.textContent = `
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18); }
-            50% { box-shadow: 0 20px 44px rgba(14, 116, 144, 0.22); }
+        /* Background: slow, subtle blue drift */
+        @keyframes bg-shift {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .animated-bg {
+            background: linear-gradient(135deg, #0f172a, #1e3a8a, #0f172a, #1e3a8a, #0f172a);
+            background-size: 400% 400%;
+            animation: bg-shift 10s ease infinite;
         }
 
-        @keyframes streak-pop {
-            0% { transform: scale(0.98); opacity: 0.75; }
-            100% { transform: scale(1); opacity: 1; }
+        /* Outer span: gentle float — owns translateY */
+        @keyframes letter-float {
+            0%, 100% { transform: translateY(0); }
+            50%       { transform: translateY(-5px); }
+        }
+        .letter-outer {
+            display: inline-block;
+            animation: letter-float 3s ease-in-out infinite;
         }
 
-        .preview-shell {
-            min-height: 100%;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 18px;
-            background:
-                radial-gradient(circle at top left, rgba(20, 184, 166, 0.16), transparent 38%),
-                radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.2), transparent 45%),
-                linear-gradient(145deg, #f8fafc, #e2e8f0 58%, #dbeafe);
+        /* Inner span: drops in once — owns opacity + scale */
+        @keyframes letter-drop {
+            0%   { opacity: 0; transform: scale(0.7); }
+            70%  { opacity: 1; transform: scale(1.08); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .letter-inner {
+            display: inline-block;
+            opacity: 0;
+            animation: letter-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            background: linear-gradient(135deg, #93c5fd, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .preview-card {
-            width: min(100%, 460px);
-            border-radius: 28px;
-            padding: 22px;
-            color: #0f172a;
-            background: rgba(255, 255, 255, 0.88);
-            border: 1px solid rgba(148, 163, 184, 0.28);
-            backdrop-filter: blur(18px);
-            animation: pulse-glow 5s ease-in-out infinite;
+        /* Grid: soft glow breathe */
+        @keyframes grid-glow {
+            0%, 100% { box-shadow: 0 0 8px 0px rgba(59,130,246,0.2), 0 4px 20px rgba(0,0,0,0.4); }
+            50%       { box-shadow: 0 0 20px 4px rgba(59,130,246,0.4), 0 4px 28px rgba(0,0,0,0.5); }
+        }
+        .grid-glow {
+            animation: grid-glow 4s ease-in-out infinite;
         }
 
-        .preview-kicker {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            background: rgba(20, 184, 166, 0.12);
-            color: #0f766e;
+        /* Subtitle + buttons: slide up into view */
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
-
-        .preview-title {
-            margin: 14px 0 8px;
-            font-size: 34px;
-            line-height: 1;
-            font-weight: 800;
-            letter-spacing: -0.04em;
-        }
-
-        .preview-subtitle {
-            margin: 0;
-            font-size: 14px;
-            line-height: 1.5;
-            color: #334155;
-        }
-
-        .preview-metrics {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-            margin-top: 18px;
-        }
-
-        .preview-metric {
-            border-radius: 18px;
-            padding: 14px;
-            background: rgba(241, 245, 249, 0.95);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-        }
-
-        .preview-label {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #64748b;
-        }
-
-        .preview-value {
-            margin-top: 6px;
-            font-size: 24px;
-            line-height: 1;
-            font-weight: 800;
-            letter-spacing: -0.04em;
-        }
-
-        .preview-value-copy {
-            margin-top: 4px;
-            font-size: 13px;
-            color: #334155;
-            animation: streak-pop 300ms ease-out;
-        }
-
-        .preview-section {
-            margin-top: 18px;
-            border-radius: 20px;
-            padding: 16px;
-            background: rgba(248, 250, 252, 0.92);
-            border: 1px solid rgba(148, 163, 184, 0.16);
-        }
-
-        .preview-section h2 {
-            margin: 0 0 10px;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: #475569;
-        }
-
-        .preview-list {
-            margin: 0;
-            padding: 0;
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 9px;
-        }
-
-        .preview-list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            font-size: 14px;
-            color: #0f172a;
-        }
-
-        .preview-rank {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 26px;
-            height: 26px;
-            border-radius: 999px;
-            background: #0f172a;
-            color: white;
-            font-size: 12px;
-            font-weight: 800;
-        }
-
-        .preview-top-player {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-width: 0;
-        }
-
-        .preview-username {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-weight: 700;
-        }
-
-        .preview-time {
-            font-variant-numeric: tabular-nums;
-            color: #0f766e;
-            font-weight: 700;
-        }
-
-        .preview-feed-item {
-            display: block;
-            padding: 10px 12px;
-            border-radius: 14px;
-            background: rgba(226, 232, 240, 0.72);
-            color: #1e293b;
-            font-size: 13px;
-            line-height: 1.4;
-        }
-
-        .preview-cta {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            min-height: 52px;
-            margin-top: 18px;
-            border: 0;
-            border-radius: 18px;
-            background: linear-gradient(135deg, #0f766e, #2563eb);
-            color: white;
-            font-size: 15px;
-            font-weight: 800;
-            letter-spacing: 0.01em;
-            cursor: pointer;
-            transition: transform 180ms ease, box-shadow 180ms ease;
-            box-shadow: 0 16px 28px rgba(37, 99, 235, 0.24);
-        }
-
-        .preview-cta:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 20px 32px rgba(37, 99, 235, 0.28);
+        .fade-up {
+            opacity: 0;
+            animation: fade-up 0.5s ease-out forwards;
         }
     `
     document.head.appendChild(style)
 }
 
-const formatElapsedTime = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
-}
+const createDecorativeGrid = (): HTMLElement => {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'flex items-center justify-center'
 
-const formatDifficulty = (difficulty: Difficulty): string =>
-    `${difficulty[0]?.toUpperCase() ?? ''}${difficulty.slice(1)}`
+    const grid = document.createElement('div')
+    grid.className = 'grid-glow'
+    grid.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        width: 162px;
+        height: 162px;
+        border: 2px solid rgba(59,130,246,0.4);
+        border-radius: 6px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.05);
+    `
 
-const createLeaderboardRow = (entry: LeaderboardEntry): HTMLLIElement => {
-    const row = document.createElement('li')
-    row.className = 'preview-list-item'
+    for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+            const cell = document.createElement('div')
+            const value = SAMPLE_GRID[row]?.[col] ?? 0
 
-    const player = document.createElement('div')
-    player.className = 'preview-top-player'
+            const borderRight = (col + 1) % 3 === 0 && col < 8
+                ? '2px solid rgba(96,165,250,0.5)'
+                : '1px solid rgba(148,163,184,0.12)'
+            const borderBottom = (row + 1) % 3 === 0 && row < 8
+                ? '2px solid rgba(96,165,250,0.5)'
+                : '1px solid rgba(148,163,184,0.12)'
 
-    const rank = document.createElement('span')
-    rank.className = 'preview-rank'
-    rank.textContent = String(entry.rank)
-
-    const username = document.createElement('span')
-    username.className = 'preview-username'
-    username.textContent = entry.username
-
-    const time = document.createElement('span')
-    time.className = 'preview-time'
-    time.textContent = formatElapsedTime(entry.adjustedTime)
-
-    player.append(rank, username)
-    row.append(player, time)
-    return row
-}
-
-const buildFeedText = (event: Pick<RecentCompletionEvent, 'username' | 'adjustedTime'>): string =>
-    `${event.username} just finished in ${formatElapsedTime(event.adjustedTime)}`
-
-const renderRecentFeed = (container: HTMLElement, events: Pick<RecentCompletionEvent, 'username' | 'adjustedTime'>[]): void => {
-    container.replaceChildren()
-
-    const items = events.slice(0, MAX_FEED_EVENTS)
-    if (items.length === 0) {
-        const empty = document.createElement('span')
-        empty.className = 'preview-feed-item'
-        empty.textContent = 'Be the first solver to light up the race.'
-        container.appendChild(empty)
-        return
-    }
-
-    for (const event of items) {
-        const item = document.createElement('span')
-        item.className = 'preview-feed-item'
-        item.textContent = buildFeedText(event)
-        container.appendChild(item)
-    }
-}
-
-const render = (app: HTMLElement, state: PreviewState): PreviewElements => {
-    app.style.cssText = 'height: 100%; width: 100%;'
-    injectStyles()
-
-    const shell = document.createElement('div')
-    shell.className = 'preview-shell'
-
-    const card = document.createElement('section')
-    card.className = 'preview-card'
-
-    const kicker = document.createElement('div')
-    kicker.className = 'preview-kicker'
-    kicker.textContent = 'Today’s Reddit Race'
-
-    const title = document.createElement('h1')
-    title.className = 'preview-title'
-    title.textContent = state.featuredRace.title
-
-    const subtitle = document.createElement('p')
-    subtitle.className = 'preview-subtitle'
-    subtitle.textContent = `${formatDifficulty(state.featuredRace.difficulty)} board (${state.featuredRace.difficulty}). Shared leaderboard. One solve that moves the whole thread.`
-
-    const metrics = document.createElement('div')
-    metrics.className = 'preview-metrics'
-
-    const difficultyMetric = document.createElement('div')
-    difficultyMetric.className = 'preview-metric'
-
-    const difficultyLabel = document.createElement('div')
-    difficultyLabel.className = 'preview-label'
-    difficultyLabel.textContent = 'Featured Difficulty'
-
-    const difficultyValue = document.createElement('div')
-    difficultyValue.className = 'preview-value'
-    difficultyValue.textContent = formatDifficulty(state.featuredRace.difficulty)
-
-    const difficultyCopy = document.createElement('div')
-    difficultyCopy.className = 'preview-value-copy'
-    difficultyCopy.textContent = 'Practice boards stay unlocked too.'
-
-    difficultyMetric.append(difficultyLabel, difficultyValue, difficultyCopy)
-
-    const solverMetric = document.createElement('div')
-    solverMetric.className = 'preview-metric'
-
-    const solverLabel = document.createElement('div')
-    solverLabel.className = 'preview-label'
-    solverLabel.textContent = 'Live Race'
-
-    const solverValue = document.createElement('div')
-    solverValue.className = 'preview-value'
-    solverValue.textContent = `${state.featuredRace.solverCount}`
-
-    const solverCopy = document.createElement('div')
-    solverCopy.className = 'preview-value-copy'
-    solverCopy.textContent = `${state.featuredRace.solverCount} solvers chasing the board`
-
-    solverMetric.append(solverLabel, solverValue, solverCopy)
-    metrics.append(difficultyMetric, solverMetric)
-
-    const streakSection = document.createElement('section')
-    streakSection.className = 'preview-section'
-
-    const streakHeading = document.createElement('h2')
-    streakHeading.textContent = 'Return Loop'
-
-    const streakCopy = document.createElement('p')
-    streakCopy.className = 'preview-subtitle'
-    const freezeSuffix = state.playerProfile.freezeCount > 0
-        ? ` • ${state.playerProfile.freezeCount} freeze${state.playerProfile.freezeCount === 1 ? '' : 's'} banked`
-        : ''
-    streakCopy.textContent = `${state.playerProfile.currentStreak}-day streak${freezeSuffix}`
-    streakSection.append(streakHeading, streakCopy)
-
-    const leaderboardSection = document.createElement('section')
-    leaderboardSection.className = 'preview-section'
-
-    const leaderboardHeading = document.createElement('h2')
-    leaderboardHeading.textContent = 'Top Solvers'
-
-    const leaderboardList = document.createElement('ol')
-    leaderboardList.className = 'preview-list'
-    for (const entry of state.topPlayers) {
-        leaderboardList.appendChild(createLeaderboardRow(entry))
-    }
-    leaderboardSection.append(leaderboardHeading, leaderboardList)
-
-    const feedSection = document.createElement('section')
-    feedSection.className = 'preview-section'
-
-    const feedHeading = document.createElement('h2')
-    feedHeading.textContent = 'Live Feed'
-
-    const feedList = document.createElement('div')
-    feedList.className = 'preview-list'
-    renderRecentFeed(feedList, state.recentCompletions)
-    feedSection.append(feedHeading, feedList)
-
-    const cta = document.createElement('button')
-    cta.className = 'preview-cta'
-    cta.textContent = 'Play Today\'s Race'
-    cta.addEventListener('click', (event: MouseEvent) => {
-        try {
-            localStorage.setItem(DIFFICULTY_STORAGE_KEY, state.featuredRace.difficulty)
-        } catch {
-            // localStorage unavailable; continue into the game anyway
+            cell.style.cssText = `
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 700;
+                border-right: ${borderRight};
+                border-bottom: ${borderBottom};
+                color: ${value > 0 ? 'rgba(147,197,253,1)' : 'transparent'};
+                background: ${value > 0 ? 'rgba(59,130,246,0.12)' : 'transparent'};
+            `
+            cell.textContent = value > 0 ? String(value) : '·'
+            grid.appendChild(cell)
         }
+    }
 
+    wrapper.appendChild(grid)
+    return wrapper
+}
+
+const createButton = (difficulty: Difficulty): HTMLButtonElement => {
+    const btn = document.createElement('button')
+    btn.textContent = difficulty
+    btn.className = 'min-h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold text-white capitalize transition-all hover:bg-blue-500 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400'
+    btn.addEventListener('click', (event: MouseEvent) => {
+        try {
+            localStorage.setItem(DIFFICULTY_STORAGE_KEY, difficulty)
+        } catch {
+            // localStorage unavailable — continue to expanded game
+        }
         requestExpandedMode(event, 'game')
     })
-
-    card.append(kicker, title, subtitle, metrics, streakSection, leaderboardSection, feedSection, cta)
-    shell.appendChild(card)
-    app.replaceChildren(shell)
-
-    return {
-        solverCount: solverCopy,
-        recentFeed: feedList,
-    }
+    return btn
 }
 
-const fetchPreviewState = async (): Promise<PreviewState> => {
-    const response = await fetch('/api/preview-state')
-    const payload = await response.json() as PreviewResponse
+const render = (app: HTMLElement): void => {
+    app.style.cssText = 'height: 100%; width: 100%;'
+    app.className = 'flex h-full w-full items-center justify-center overflow-hidden'
 
-    if (!response.ok || payload.status !== 'success') {
-        throw new Error(payload.status === 'error' ? payload.message : 'Failed to load preview')
+    injectStyles()
+
+    const bg = document.createElement('div')
+    bg.className = 'animated-bg flex h-full w-full flex-col items-center justify-center gap-4 px-6 py-6'
+
+    bg.appendChild(createDecorativeGrid())
+
+    const titleBlock = document.createElement('div')
+    titleBlock.className = 'text-center'
+
+    const title = document.createElement('h1')
+    title.className = 'text-4xl font-bold tracking-tight'
+
+    // Outer span: floats. Inner span: drops in. Separate transforms = no conflict.
+    Array.from('Sudoku').forEach((char, i) => {
+        const outer = document.createElement('span')
+        outer.className = 'letter-outer'
+        outer.style.animationDelay = `${i * 120}ms`
+
+        const inner = document.createElement('span')
+        inner.textContent = char
+        inner.className = 'letter-inner'
+        inner.style.animationDelay = `${i * 100}ms`
+
+        outer.appendChild(inner)
+        title.appendChild(outer)
+    })
+
+    const subtitle = document.createElement('p')
+    subtitle.textContent = 'Choose your challenge'
+    subtitle.className = 'fade-up mt-1 text-sm text-slate-400'
+    subtitle.style.animationDelay = '700ms'
+
+    titleBlock.appendChild(title)
+    titleBlock.appendChild(subtitle)
+    bg.appendChild(titleBlock)
+
+    const buttonGrid = document.createElement('div')
+    buttonGrid.className = 'fade-up grid w-full max-w-xs grid-cols-2 gap-2'
+    buttonGrid.style.animationDelay = '900ms'
+
+    for (const difficulty of VALID_DIFFICULTIES) {
+        buttonGrid.appendChild(createButton(difficulty))
     }
 
-    return payload.data
+    bg.appendChild(buttonGrid)
+    app.appendChild(bg)
 }
 
-const boot = async (): Promise<void> => {
-    const app = document.getElementById('app')
-    if (!app) throw new Error('App element not found')
-
-    try {
-        const state = await fetchPreviewState()
-        const elements = render(app, state)
-        const feedEvents: Pick<RecentCompletionEvent, 'username' | 'adjustedTime'>[] = [
-            ...state.recentCompletions,
-        ]
-        let solverCount = state.featuredRace.solverCount
-
-        connectRealtime<CompletionMessage>({
-            channel: state.channel,
-            onMessage: (message) => {
-                if (message.type !== 'completion') return
-                solverCount = message.solverCount ?? (solverCount + 1)
-                elements.solverCount.textContent = `${solverCount} solvers chasing the board`
-                feedEvents.unshift({
-                    username: message.username,
-                    adjustedTime: message.adjustedTime,
-                })
-                renderRecentFeed(elements.recentFeed, feedEvents)
-            },
-        })
-    } catch (error) {
-        const message = error instanceof Error ? error.message : 'Could not load today’s race.'
-        app.innerHTML = `
-            <div class="preview-shell">
-                <section class="preview-card">
-                    <h1 class="preview-title">Sudoku</h1>
-                    <p class="preview-subtitle">${message}</p>
-                </section>
-            </div>
-        `
-    }
-}
-
-void boot()
+const app = document.getElementById('app')
+if (!app) throw new Error('App element not found')
+render(app)
