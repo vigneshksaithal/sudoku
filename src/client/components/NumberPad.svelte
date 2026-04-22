@@ -14,6 +14,8 @@
     lockedDigit,
     digitFirstMode,
     onToggleDigitFirst,
+    onLeaderboard,
+    showLeaderboard,
   }: {
     onNumber: (num: number) => void;
     onErase: () => void;
@@ -29,6 +31,8 @@
     lockedDigit: number | null;
     digitFirstMode: boolean;
     onToggleDigitFirst: () => void;
+    onLeaderboard?: () => void;
+    showLeaderboard?: boolean;
   } = $props();
 
   const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -100,6 +104,22 @@
     >
       <span class="text-lg leading-none">💡</span>
     </button>
+    {#if onLeaderboard}
+      <button
+        class={[
+          "flex items-center justify-center rounded-md min-h-11 min-w-11 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500",
+          showLeaderboard
+            ? "bg-blue-600 text-white"
+            : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600",
+        ]}
+        onclick={onLeaderboard}
+        aria-label="Leaderboard"
+        aria-pressed={showLeaderboard}
+        title="Leaderboard"
+      >
+        <span class="text-lg leading-none">🏆</span>
+      </button>
+    {/if}
   </div>
 
   <!-- 5-column digit grid -->

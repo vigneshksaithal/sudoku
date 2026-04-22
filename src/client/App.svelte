@@ -31,6 +31,7 @@
 		clearAutoCandidates,
 		placeLockedDigit,
 		batchPlaceDigit,
+		isMistake,
 	} from "./lib/app-logic";
 	import {
 		DIFFICULTY_STORAGE_KEY,
@@ -38,6 +39,7 @@
 		getNextDifficulty,
 	} from "./lib/constants";
 	import HintPanel from "./components/HintPanel.svelte";
+	import Leaderboard from "./components/Leaderboard.svelte";
 	import { findTechniqueHint } from "./lib/technique-hints/technique-engine";
 	import { buildCandidateBoard } from "./lib/technique-hints/candidate-board";
 	import {
@@ -80,6 +82,13 @@
 	let notesMode = $state(false);
 	let notesBoard: NotesBoard = $state(createEmptyNotesBoard());
 	let hintsUsed: number = $state(0);
+	let mistakesCount: number = $state(0);
+	let solveResult: {
+		postRank: number;
+		globalRank: number;
+		adjustedTime: number;
+	} | null = $state(null);
+	let solveError: string | null = $state(null);
 	let activeHint: TechniqueHint | null = $state(null);
 	let undoStack: UndoStack = $state([]);
 
@@ -106,9 +115,15 @@
 		countDigitPlacements(board),
 	);
 
+	const solutionFlat: readonly number[] = $derived(
+		solutions !== null ? Array.from(solutions[difficulty]).map(Number) : [],
+	);
+
 	let highlightDigit: number | null = $state(null);
 	let lockedDigit: number | null = $state(null);
 	let digitFirstMode: boolean = $state(false);
+	let showLeaderboard: boolean = $state(false);
+	let currentUsername: string | undefined = $state(undefined);
 
 	const resetRoundState = (): void => {
 		selection = EMPTY_SELECTION;
@@ -117,11 +132,15 @@
 		notesBoard = createEmptyNotesBoard();
 		notesMode = false;
 		hintsUsed = 0;
+		mistakesCount = 0;
+		solveResult = null;
+		solveError = null;
 		activeHint = null;
 		undoStack = clearStack();
 		screen = "playing";
 		lockedDigit = null;
 		digitFirstMode = false;
+		showLeaderboard = false;
 		startTimer();
 	};
 
@@ -201,6 +220,9 @@
 				if (
 					placeLockedDigit(board, notesBoard, row, col, lockedDigit)
 				) {
+					if (isMistake(solutionFlat, row * 9 + col, lockedDigit)) {
+						mistakesCount++;
+					}
 					board = updateConflicts(board);
 					checkCompletion();
 				}
@@ -235,7 +257,17 @@
 			if (notesMode) {
 				applyAutoNotes(board, notesBoard, selection, lockedDigit);
 			} else {
-				batchPlaceDigit(board, notesBoard, selection, lockedDigit);
+				const placed = batchPlaceDigit(
+					board,
+					notesBoard,
+					selection,
+					lockedDigit,
+				);
+				for (const [r, c] of placed) {
+					if (isMistake(solutionFlat, r * 9 + c, lockedDigit)) {
+						mistakesCount++;
+					}
+				}
 				board = updateConflicts(board);
 				checkCompletion();
 			}
@@ -322,6 +354,15 @@
 								lockedDigit,
 							)
 						) {
+							if (
+								isMistake(
+									solutionFlat,
+									newRow * 9 + newCol,
+									lockedDigit,
+								)
+							) {
+								mistakesCount++;
+							}
 							board = updateConflicts(board);
 							checkCompletion();
 						}
@@ -346,7 +387,17 @@
 				if (notesMode) {
 					applyAutoNotes(board, notesBoard, selection, lockedDigit);
 				} else {
-					batchPlaceDigit(board, notesBoard, selection, lockedDigit);
+					const placed = batchPlaceDigit(
+						board,
+						notesBoard,
+						selection,
+						lockedDigit,
+					);
+					for (const [r, c] of placed) {
+						if (isMistake(solutionFlat, r * 9 + c, lockedDigit)) {
+							mistakesCount++;
+						}
+					}
 					board = updateConflicts(board);
 					checkCompletion();
 				}
@@ -376,6 +427,9 @@
 			toggleNote(notesBoard, selectedRow, selectedCol, num);
 		} else {
 			board[selectedRow]![selectedCol] = { ...cell, value: num };
+			if (isMistake(solutionFlat, selectedRow * 9 + selectedCol, num)) {
+				mistakesCount++;
+			}
 			board = updateConflicts(board);
 			clearCellNotes(notesBoard, selectedRow, selectedCol);
 			cleanupNotes(notesBoard, selectedRow, selectedCol, num);
@@ -438,6 +492,29 @@
 			if (json.valid) {
 				if (timerInterval) clearInterval(timerInterval);
 				screen = "completed";
+				// Submit solve in the background — completion screen shows regardless
+				try {
+					const solveRes = await fetch("/api/solve", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							difficulty,
+							completionTime: elapsedSeconds,
+							hintsUsed,
+							mistakesCount,
+						}),
+					});
+					const solveJson = await solveRes.json();
+					if (!solveRes.ok || solveJson.status === "error") {
+						solveError =
+							solveJson.message ?? "Failed to record solve.";
+					} else {
+						solveResult = solveJson.data;
+					}
+				} catch {
+					solveError =
+						"Could not submit solve. Check your connection.";
+				}
 			} else {
 				validationMessage = "Not quite right — check your solution.";
 			}
@@ -608,27 +685,58 @@
 							/>
 						</div>
 					{/if}
-					<NumberPad
-						onNumber={handleNumber}
-						onErase={handleErase}
-						{notesMode}
-						onToggleNotes={() => {
-							notesMode = !notesMode;
-						}}
-						onHint={handleHint}
-						{hintsDisabled}
-						onUndo={handleUndo}
-						{undoDisabled}
-						onAutoCandidate={handleAutoCandidate}
-						{autoCandidateActive}
-						{digitCounts}
-						{lockedDigit}
-						{digitFirstMode}
-						onToggleDigitFirst={() => {
-							digitFirstMode = !digitFirstMode;
-							if (!digitFirstMode) lockedDigit = null;
-						}}
-					/>
+					{#if showLeaderboard}
+						<!-- Desktop: inline leaderboard panel -->
+						<div class="hidden sm:flex sm:flex-col sm:gap-2">
+							<div class="flex items-center justify-between">
+								<span
+									class="text-sm font-semibold text-neutral-700 dark:text-neutral-300"
+									>Leaderboard</span
+								>
+								<button
+									class="rounded-lg px-3 py-1 text-xs font-medium text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+									onclick={() => (showLeaderboard = false)}
+									aria-label="Close leaderboard"
+								>
+									✕ Close
+								</button>
+							</div>
+							<div class="h-96">
+								<Leaderboard
+									{difficulty}
+									{...currentUsername !== undefined
+										? { currentUsername }
+										: {}}
+									mode="panel"
+								/>
+							</div>
+						</div>
+					{:else}
+						<NumberPad
+							onNumber={handleNumber}
+							onErase={handleErase}
+							{notesMode}
+							onToggleNotes={() => {
+								notesMode = !notesMode;
+							}}
+							onHint={handleHint}
+							{hintsDisabled}
+							onUndo={handleUndo}
+							{undoDisabled}
+							onAutoCandidate={handleAutoCandidate}
+							{autoCandidateActive}
+							{digitCounts}
+							{lockedDigit}
+							{digitFirstMode}
+							onToggleDigitFirst={() => {
+								digitFirstMode = !digitFirstMode;
+								if (!digitFirstMode) lockedDigit = null;
+							}}
+							onLeaderboard={() =>
+								(showLeaderboard = !showLeaderboard)}
+							showLeaderboard={false}
+						/>
+					{/if}
 					{#if validating}
 						<p class="text-sm text-neutral-500">Checking…</p>
 					{/if}
@@ -642,20 +750,75 @@
 				</div>
 			</div>
 		</div>
+		<!-- Mobile: full-screen leaderboard overlay -->
+		{#if showLeaderboard}
+			<div
+				class="fixed inset-0 z-50 flex flex-col bg-white dark:bg-neutral-900 sm:hidden"
+			>
+				<div
+					class="flex shrink-0 items-center justify-between px-4 py-3"
+				>
+					<span
+						class="text-base font-semibold text-neutral-900 dark:text-neutral-100"
+						>🏆 Leaderboard</span
+					>
+					<button
+						class="min-h-11 min-w-11 rounded-lg bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+						onclick={() => (showLeaderboard = false)}
+						aria-label="Close leaderboard"
+					>
+						✕ Close
+					</button>
+				</div>
+				<div class="min-h-0 flex-1 px-4 pb-4">
+					<Leaderboard
+						{difficulty}
+						{...currentUsername !== undefined
+							? { currentUsername }
+							: {}}
+						mode="panel"
+					/>
+				</div>
+			</div>
+		{/if}
 	{:else if screen === "completed"}
 		<div
-			class="flex h-full w-full flex-col items-center justify-center gap-6 px-4 text-center"
+			class="flex h-full w-full flex-col items-center overflow-y-auto px-4 py-4 text-center gap-3"
 		>
-			<h1 class="text-3xl font-bold">🎉 Solved!</h1>
-			<p class="text-neutral-600 dark:text-neutral-400">
+			<h1 class="text-2xl font-bold shrink-0">🎉 Solved!</h1>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 shrink-0">
 				You completed the {difficulty} puzzle in
 				<span
 					class="font-mono font-semibold text-neutral-900 dark:text-neutral-100"
 					>{formatTime(elapsedSeconds)}</span
 				>.
 			</p>
+			{#if solveError !== null}
+				<div
+					class="flex shrink-0 items-center gap-2 rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-1.5 text-xs text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+				>
+					<span>{solveError}</span>
+					<button
+						class="ml-1 text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-100 focus:outline-none"
+						aria-label="Dismiss"
+						onclick={() => (solveError = null)}
+					>
+						✕
+					</button>
+				</div>
+			{/if}
+			<div class="w-full max-w-md min-h-0 flex-1">
+				<Leaderboard
+					{difficulty}
+					{...currentUsername !== undefined
+						? { currentUsername }
+						: {}}
+					mode="completion"
+					{solveResult}
+				/>
+			</div>
 			<button
-				class="min-h-11 min-w-11 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition-all hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+				class="min-h-11 shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white transition-all hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
 				onclick={() => changeDifficulty(nextDifficulty)}
 			>
 				Try {nextDifficulty}

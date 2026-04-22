@@ -147,6 +147,16 @@ export const batchPlaceDigit = (
 }
 
 /**
+ * Returns `true` if `digit` does not match the solution at `cellIndex`.
+ * Pure function — no side effects.
+ */
+export const isMistake = (
+    solution: readonly number[],
+    cellIndex: number,
+    digit: number,
+): boolean => digit !== solution[cellIndex]
+
+/**
  * Place `digit` into `board[row][col]` in digit-first mode.
  * Clears the cell's notes and removes the digit from all peer notes.
  * Returns `true` if placement occurred, `false` if skipped.

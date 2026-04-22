@@ -1,8 +1,10 @@
 import {
+  cache,
   context,
   createServer,
   getServerPort,
-  redis
+  redis,
+  reddit,
 } from '@devvit/web/server'
 import { serve } from '@hono/node-server'
 import type { Context } from 'hono'
@@ -10,6 +12,7 @@ import { Hono } from 'hono'
 
 import { createPost } from './post'
 import { DIFFICULTIES } from './lib/sudoku'
+import { getLeaderboard, recordSolve, validateSolveInput } from './lib/leaderboard'
 
 const HTTP_STATUS_BAD_REQUEST = 400
 const HTTP_STATUS_INTERNAL_ERROR = 500
@@ -101,6 +104,100 @@ app.post('/api/validate', async (c) => {
   }
 
   return c.json({ valid: board === solution })
+})
+
+// --- POST /api/solve ---
+
+app.post('/api/solve', async (c) => {
+  const userId = context.userId
+  if (!userId) {
+    return c.json({ status: 'error', message: 'User must be logged in' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const postId = context.postId
+  if (!postId) {
+    return c.json({ status: 'error', message: 'Missing postId' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
+  const parsed = validateSolveInput(body)
+  if (typeof parsed === 'string') {
+    return c.json({ status: 'error', message: parsed }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const { difficulty, completionTime, hintsUsed, mistakesCount } = parsed
+
+  const solution = await redis.hGet(`puzzle:${postId}`, `${difficulty}:solution`)
+  if (!solution) {
+    return c.json({ status: 'error', message: 'Solution not found' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const username = await reddit.getCurrentUsername()
+  if (!username) {
+    return c.json({ status: 'error', message: 'Failed to get username' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const result = await recordSolve({ redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount })
+  if (typeof result === 'string') {
+    return c.json({ status: 'error', message: result }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  return c.json({ status: 'success', data: result })
+})
+
+// --- GET /api/leaderboard/post ---
+
+app.get('/api/leaderboard/post', async (c) => {
+  const difficulty = c.req.query('difficulty')
+  if (!isValidDifficulty(difficulty)) {
+    return c.json({ status: 'error', message: 'Invalid difficulty' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const postId = context.postId
+  if (!postId) {
+    return c.json({ status: 'error', message: 'Missing postId' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const userId = context.userId
+  const data = await cache(
+    async () => {
+      const result = await getLeaderboard({
+        redis,
+        key: `leaderboard:${postId}:${difficulty}`,
+        solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        ...(userId !== undefined ? { userId } : {}),
+      })
+      return JSON.stringify(result)
+    },
+    { key: `leaderboard:post:${postId}:${difficulty}`, ttl: 10 }
+  )
+
+  return c.json({ status: 'success', data: JSON.parse(data) })
+})
+
+// --- GET /api/leaderboard/global ---
+
+app.get('/api/leaderboard/global', async (c) => {
+  const difficulty = c.req.query('difficulty')
+  if (!isValidDifficulty(difficulty)) {
+    return c.json({ status: 'error', message: 'Invalid difficulty' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const userId = context.userId
+  const data = await cache(
+    async () => {
+      const result = await getLeaderboard({
+        redis,
+        key: `leaderboard:global:${difficulty}`,
+        solveKeyPrefix: `solve:global:${difficulty}`,
+        ...(userId !== undefined ? { userId } : {}),
+      })
+      return JSON.stringify(result)
+    },
+    { key: `leaderboard:global:${difficulty}`, ttl: 10 }
+  )
+
+  return c.json({ status: 'success', data: JSON.parse(data) })
 })
 
 // --- Scheduler: daily post ---
