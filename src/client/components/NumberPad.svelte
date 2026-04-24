@@ -16,6 +16,7 @@
     onToggleDigitFirst,
     onLeaderboard,
     showLeaderboard,
+    onSubmitPuzzle,
   }: {
     onNumber: (num: number) => void;
     onErase: () => void;
@@ -33,6 +34,7 @@
     onToggleDigitFirst: () => void;
     onLeaderboard?: () => void;
     showLeaderboard?: boolean;
+    onSubmitPuzzle?: () => void;
   } = $props();
 
   const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -172,5 +174,13 @@
       />
       Digit First
     </label>
+    {#if onSubmitPuzzle}
+      <button
+        class="ml-auto rounded-md border border-neutral-300 dark:border-neutral-600 px-2.5 py-1 text-xs font-medium text-neutral-600 dark:text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        onclick={onSubmitPuzzle}
+      >
+        Submit Puzzle
+      </button>
+    {/if}
   </div>
 </div>

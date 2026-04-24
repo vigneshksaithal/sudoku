@@ -11,10 +11,14 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 
 import { createPost } from './post'
+import { formatPostDate } from './post'
 import { DIFFICULTIES } from './lib/sudoku'
 import { getLeaderboard, recordSolve, validateSolveInput } from './lib/leaderboard'
+import { validatePuzzle } from './lib/puzzle-validator'
+import { checkCooldown, setCooldown, addToSubmissionHistory, getSubmissionHistory, incrementSolveCount } from './lib/community-submit'
 
 const HTTP_STATUS_BAD_REQUEST = 400
+const HTTP_STATUS_UNAUTHORIZED = 401
 const HTTP_STATUS_INTERNAL_ERROR = 500
 
 type ValidDifficulty = (typeof DIFFICULTIES)[number]
@@ -48,6 +52,38 @@ app.post('/internal/menu/post-create', createPostHandler)
 
 // --- GET /api/puzzle ---
 
+const buildCommunityPuzzleResponse = (data: Record<string, string>): Record<string, unknown> => {
+  const difficulty = data['difficulty'] ?? ''
+  const puzzleString = data[`${difficulty}:puzzle`] ?? ''
+  const solutionString = data[`${difficulty}:solution`] ?? ''
+  const solveCount = parseInt(data['solveCount'] ?? '0', 10)
+  const createdAt = parseInt(data['createdAt'] ?? '0', 10)
+  return {
+    type: 'community',
+    creatorUsername: data['creatorUsername'] ?? '',
+    puzzles: { [difficulty]: puzzleString },
+    solutions: { [difficulty]: solutionString },
+    solveCount: Number.isNaN(solveCount) ? 0 : solveCount,
+    createdAt: Number.isNaN(createdAt) ? 0 : createdAt,
+  }
+}
+
+const buildGeneratedPuzzleResponse = (data: Record<string, string>): Record<string, unknown> | null => {
+  const puzzles: Record<string, string> = {}
+  const solutions: Record<string, string> = {}
+  for (const d of DIFFICULTIES) {
+    const puzzle = data[`${d}:puzzle`]
+    if (!puzzle) return null
+    puzzles[d] = puzzle
+    const solution = data[`${d}:solution`]
+    if (solution) {
+      solutions[d] = solution
+    }
+  }
+  const createdAt = parseInt(data['createdAt'] ?? '0', 10)
+  return { type: 'generated', puzzles, solutions, createdAt: Number.isNaN(createdAt) ? 0 : createdAt }
+}
+
 app.get('/api/puzzle', async (c) => {
   const postId = context.postId
   if (!postId) {
@@ -55,21 +91,17 @@ app.get('/api/puzzle', async (c) => {
   }
 
   const data = await redis.hGetAll(`puzzle:${postId}`)
-  const puzzles: Record<string, string> = {}
-  const solutions: Record<string, string> = {}
-  for (const d of DIFFICULTIES) {
-    const puzzle = data[`${d}:puzzle`]
-    if (!puzzle) {
-      return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
-    }
-    puzzles[d] = puzzle
-    const solution = data[`${d}:solution`]
-    if (solution) {
-      solutions[d] = solution
-    }
+
+  if (data['type'] === 'community') {
+    return c.json({ status: 'success', data: buildCommunityPuzzleResponse(data) })
   }
 
-  return c.json({ status: 'success', data: { puzzles, solutions } })
+  const generated = buildGeneratedPuzzleResponse(data)
+  if (!generated) {
+    return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  return c.json({ status: 'success', data: generated })
 })
 
 // --- POST /api/validate ---
@@ -106,6 +138,122 @@ app.post('/api/validate', async (c) => {
   return c.json({ valid: board === solution })
 })
 
+// --- POST /api/community/validate ---
+
+app.post('/api/community/validate', async (c) => {
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
+  if (!body) {
+    return c.json({ status: 'error', message: 'Invalid JSON' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const { puzzle } = body
+  if (typeof puzzle !== 'string') {
+    return c.json({ status: 'error', message: 'Missing puzzle' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const result = validatePuzzle(puzzle)
+  if (!result.valid) {
+    return c.json({ status: 'error', message: result.error })
+  }
+
+  return c.json({
+    status: 'success',
+    data: {
+      difficulty: result.difficulty,
+      clueCount: result.clueCount,
+      preview: puzzle,
+    },
+  })
+})
+
+// --- POST /api/community/submit ---
+
+app.post('/api/community/submit', async (c) => {
+  const userId = context.userId
+  if (!userId) {
+    return c.json({ status: 'error', message: 'User must be logged in' }, HTTP_STATUS_UNAUTHORIZED)
+  }
+
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
+  if (!body) {
+    return c.json({ status: 'error', message: 'Invalid JSON' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const { puzzle } = body
+  if (typeof puzzle !== 'string') {
+    return c.json({ status: 'error', message: 'Missing puzzle' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const cooldown = await checkCooldown(redis, userId)
+  if (!cooldown.allowed) {
+    return c.json(
+      { status: 'error', message: `Please wait ${cooldown.remainingSeconds} seconds before submitting again` },
+      HTTP_STATUS_BAD_REQUEST
+    )
+  }
+
+  const validation = validatePuzzle(puzzle)
+  if (!validation.valid) {
+    return c.json({ status: 'error', message: validation.error }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const { difficulty, solution } = validation
+
+  const username = await reddit.getCurrentUsername()
+  if (!username) {
+    return c.json({ status: 'error', message: 'Failed to get username' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const post = await reddit.submitCustomPost({
+    subredditName: context.subredditName!,
+    title: `Sudoku #${formatPostDate(new Date())} by u/${username} (${difficulty})`,
+    entry: 'default',
+  })
+
+  const postId = post.id
+  const createdAt = Date.now()
+  const solutionString = solution.join('')
+
+  await redis.hSet(`puzzle:${postId}`, {
+    type: 'community',
+    creatorId: userId,
+    creatorUsername: username,
+    difficulty,
+    [`${difficulty}:puzzle`]: puzzle,
+    [`${difficulty}:solution`]: solutionString,
+    createdAt: String(createdAt),
+    solveCount: '0',
+  })
+
+  await setCooldown(redis, userId)
+  await addToSubmissionHistory(redis, userId, postId, createdAt)
+
+  await reddit.submitComment({
+    id: postId,
+    text: `🧩 Community puzzle submitted by u/${username}! Difficulty: ${difficulty}. Think you can solve it?`,
+  })
+
+  const postUrl = `https://reddit.com/r/${context.subredditName}/comments/${postId}`
+  return c.json({ status: 'success', data: { postUrl } })
+})
+
+// --- GET /api/community/my-puzzles ---
+
+app.get('/api/community/my-puzzles', async (c) => {
+  const userId = context.userId
+  if (!userId) {
+    return c.json({ status: 'error', message: 'User must be logged in' }, HTTP_STATUS_UNAUTHORIZED)
+  }
+
+  try {
+    const puzzles = await getSubmissionHistory(redis, userId)
+    return c.json({ status: 'success', data: { puzzles } })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return c.json({ status: 'error', message }, HTTP_STATUS_INTERNAL_ERROR)
+  }
+})
+
 // --- POST /api/solve ---
 
 app.post('/api/solve', async (c) => {
@@ -140,6 +288,11 @@ app.post('/api/solve', async (c) => {
   const result = await recordSolve({ redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount })
   if (typeof result === 'string') {
     return c.json({ status: 'error', message: result }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const puzzleType = await redis.hGet(`puzzle:${postId}`, 'type')
+  if (puzzleType === 'community') {
+    await incrementSolveCount(redis, postId)
   }
 
   return c.json({ status: 'success', data: result })

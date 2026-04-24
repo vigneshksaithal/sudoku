@@ -40,6 +40,7 @@
 	} from "./lib/constants";
 	import HintPanel from "./components/HintPanel.svelte";
 	import Leaderboard from "./components/Leaderboard.svelte";
+	import SubmitPuzzle from "./components/SubmitPuzzle.svelte";
 	import { findTechniqueHint } from "./lib/technique-hints/technique-engine";
 	import { buildCandidateBoard } from "./lib/technique-hints/candidate-board";
 	import {
@@ -56,6 +57,7 @@
 		Difficulty,
 		GameScreen,
 		NotesBoard,
+		PuzzleType,
 		TechniqueHint,
 	} from "./lib/types";
 
@@ -124,6 +126,10 @@
 	let digitFirstMode: boolean = $state(false);
 	let showLeaderboard: boolean = $state(false);
 	let currentUsername: string | undefined = $state(undefined);
+	let puzzleType: PuzzleType = $state("generated");
+	let creatorUsername: string | null = $state(null);
+	let solveCount: number | null = $state(null);
+	let puzzleCreatedAt: number | null = $state(null);
 
 	const resetRoundState = (): void => {
 		selection = EMPTY_SELECTION;
@@ -141,6 +147,10 @@
 		lockedDigit = null;
 		digitFirstMode = false;
 		showLeaderboard = false;
+		puzzleType = "generated";
+		creatorUsername = null;
+		solveCount = null;
+		puzzleCreatedAt = null;
 		startTimer();
 	};
 
@@ -160,6 +170,23 @@
 				throw new Error(json.message ?? "Failed to load puzzles");
 			puzzles = json.data.puzzles;
 			solutions = json.data.solutions ?? null;
+			if (json.data.type === "community") {
+				puzzleType = "community";
+				creatorUsername = json.data.creatorUsername ?? null;
+				solveCount = json.data.solveCount ?? null;
+				puzzleCreatedAt = json.data.createdAt ?? null;
+				// For community puzzles, set difficulty to the single available key
+				const keys = Object.keys(json.data.puzzles ?? {});
+				const communityDifficulty = keys[0];
+				if (communityDifficulty !== undefined) {
+					difficulty = communityDifficulty as Difficulty;
+				}
+			} else {
+				puzzleType = "generated";
+				creatorUsername = null;
+				solveCount = null;
+				puzzleCreatedAt = json.data.createdAt ?? null;
+			}
 			if (puzzles) {
 				loadDifficultyBoard(difficulty);
 			}
@@ -587,6 +614,15 @@
 	};
 
 	const nextDifficulty = $derived(getNextDifficulty(difficulty));
+
+	const puzzleTitle = $derived.by((): string => {
+		if (puzzleCreatedAt === null || puzzleCreatedAt === 0) return "Sudoku";
+		const d = new Date(puzzleCreatedAt);
+		const dd = String(d.getDate()).padStart(2, "0");
+		const mm = String(d.getMonth() + 1).padStart(2, "0");
+		const yyyy = d.getFullYear();
+		return `Sudoku #${dd}-${mm}-${yyyy}`;
+	});
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
@@ -617,23 +653,48 @@
 			<div
 				class="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:gap-2"
 			>
-				{#each VALID_DIFFICULTIES as d (d)}
-					<button
-						class="rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 sm:px-4 sm:py-1.5 sm:text-sm
-							{d === difficulty
-							? 'bg-blue-600 text-white'
-							: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
-						onclick={() => changeDifficulty(d)}
+				{#if puzzleType === "community"}
+					<span
+						class="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium capitalize text-white sm:px-4 sm:py-1.5 sm:text-sm"
 					>
-						{d}
-					</button>
-				{/each}
+						{difficulty}
+					</span>
+				{:else}
+					{#each VALID_DIFFICULTIES as d (d)}
+						<button
+							class="rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 sm:px-4 sm:py-1.5 sm:text-sm
+								{d === difficulty
+								? 'bg-blue-600 text-white'
+								: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
+							onclick={() => changeDifficulty(d)}
+						>
+							{d}
+						</button>
+					{/each}
+				{/if}
 			</div>
+			{#if creatorUsername !== null || solveCount !== null}
+				<div
+					class="flex shrink-0 flex-wrap items-center justify-center gap-2 text-xs text-neutral-500 dark:text-neutral-400"
+				>
+					{#if creatorUsername !== null}
+						<span>Submitted by u/{creatorUsername}</span>
+					{/if}
+					{#if solveCount !== null}
+						<span>{solveCount} solves</span>
+					{/if}
+				</div>
+			{/if}
 
-			<div
-				class="shrink-0 text-center font-mono text-sm tabular-nums text-neutral-400"
-			>
-				{formatTime(elapsedSeconds)}
+			<div class="shrink-0 flex flex-col items-center gap-0.5">
+				<p
+					class="text-sm font-semibold text-neutral-700 dark:text-neutral-300"
+				>
+					{puzzleTitle}
+				</p>
+				<p class="font-mono text-xs tabular-nums text-neutral-400">
+					{formatTime(elapsedSeconds)}
+				</p>
 			</div>
 
 			<div
@@ -735,6 +796,7 @@
 							onLeaderboard={() =>
 								(showLeaderboard = !showLeaderboard)}
 							showLeaderboard={false}
+							onSubmitPuzzle={() => (screen = "submit")}
 						/>
 					{/if}
 					{#if validating}
@@ -824,5 +886,7 @@
 				Try {nextDifficulty}
 			</button>
 		</div>
+	{:else if screen === "submit"}
+		<SubmitPuzzle onClose={() => (screen = "playing")} />
 	{/if}
 </main>

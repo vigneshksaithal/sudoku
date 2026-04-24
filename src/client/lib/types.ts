@@ -2,7 +2,7 @@ import { SvelteSet } from 'svelte/reactivity'
 
 export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'expert'
 
-export type GameScreen = 'playing' | 'completed'
+export type GameScreen = 'playing' | 'completed' | 'submit'
 
 export type InputMode = 'cell-first' | 'digit-first'
 
@@ -44,3 +44,30 @@ export type TechniqueHighlight = {
     primaryCells: ReadonlyArray<readonly [number, number]>
     secondaryCells: ReadonlyArray<readonly [number, number]>
 }
+
+export type PuzzleType = 'community' | 'generated'
+
+export type CommunityPuzzleResponse = {
+    type: 'community'
+    creatorUsername: string
+    puzzles: Record<string, string>
+    solutions: Record<string, string>
+    solveCount: number
+}
+
+export type GeneratedPuzzleResponse = {
+    type: 'generated'
+    puzzles: Record<string, string>
+    solutions: Record<string, string>
+}
+
+export type PuzzleResponse = CommunityPuzzleResponse | GeneratedPuzzleResponse
+
+export type SubmissionHistoryEntry = {
+    postId: string
+    difficulty: Difficulty
+    createdAt: number
+    solveCount: number
+}
+
+export type SubmitScreenState = 'input' | 'validating' | 'preview' | 'submitting' | 'success'
