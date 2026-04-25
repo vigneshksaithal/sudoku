@@ -7,6 +7,7 @@ import {
   reddit,
 } from '@devvit/web/server'
 import { serve } from '@hono/node-server'
+import type { T1 } from '@devvit/shared-types/tid.js'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 
@@ -16,6 +17,8 @@ import { DIFFICULTIES } from './lib/sudoku'
 import { getLeaderboard, recordSolve, validateSolveInput } from './lib/leaderboard'
 import { validatePuzzle } from './lib/puzzle-validator'
 import { checkCooldown, setCooldown, addToSubmissionHistory, getSubmissionHistory, incrementSolveCount } from './lib/community-submit'
+import { createStickyComment } from './lib/sticky-comment'
+import { formatScoreComment } from './lib/score-comment'
 
 const HTTP_STATUS_BAD_REQUEST = 400
 const HTTP_STATUS_UNAUTHORIZED = 401
@@ -208,6 +211,8 @@ app.post('/api/community/submit', async (c) => {
     subredditName: context.subredditName!,
     title: `Sudoku #${formatPostDate(new Date())} by u/${username} (${difficulty})`,
     entry: 'default',
+    runAs: 'USER',
+    userGeneratedContent: { text: puzzle },
   })
 
   const postId = post.id
@@ -227,6 +232,12 @@ app.post('/api/community/submit', async (c) => {
 
   await setCooldown(redis, userId)
   await addToSubmissionHistory(redis, userId, postId, createdAt)
+
+  await createStickyComment(
+    { reddit, redis },
+    postId,
+    '🏆 **Score Thread** — Share your solve time! Use the "Comment My Score" button after completing the puzzle.'
+  )
 
   await reddit.submitComment({
     id: postId,
@@ -351,6 +362,41 @@ app.get('/api/leaderboard/global', async (c) => {
   )
 
   return c.json({ status: 'success', data: JSON.parse(data) })
+})
+
+// --- POST /api/score/comment ---
+
+app.post('/api/score/comment', async (c) => {
+  const userId = context.userId
+  if (!userId) {
+    return c.json({ status: 'error', message: 'User must be logged in' }, HTTP_STATUS_UNAUTHORIZED)
+  }
+
+  const postId = context.postId
+  if (!postId) {
+    return c.json({ status: 'error', message: 'Missing postId' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
+  const parsed = validateSolveInput(body)
+  if (typeof parsed === 'string') {
+    return c.json({ status: 'error', message: parsed }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const stickyCommentId = await redis.hGet(`puzzle:${postId}`, 'stickyCommentId')
+  if (!stickyCommentId) {
+    return c.json({ status: 'error', message: 'Score thread unavailable' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const text = formatScoreComment(parsed)
+
+  try {
+    await reddit.submitComment({ id: stickyCommentId as T1, text, runAs: 'USER' })
+    return c.json({ status: 'success', data: {} })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to post score comment'
+    return c.json({ status: 'error', message }, HTTP_STATUS_INTERNAL_ERROR)
+  }
 })
 
 // --- Scheduler: daily post ---

@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as fc from 'fast-check'
 import { JSDOM } from 'jsdom'
 import { VALID_DIFFICULTIES } from '../../lib/constants'
+import type { Difficulty } from '../../lib/types'
+
+const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+    simple: 'Simple',
+    easy: 'Easy',
+    intermediate: 'Intermediate',
+    expert: 'Expert',
+}
 
 const mockRequestExpandedMode = vi.fn()
 
@@ -42,7 +50,7 @@ describe('Preview screen DOM', () => {
         const buttons = document.querySelectorAll('button')
         expect(buttons).toHaveLength(4)
         const labels = Array.from(buttons).map((b) => b.textContent)
-        expect(labels).toEqual(['simple', 'easy', 'intermediate', 'expert'])
+        expect(labels).toEqual(['Simple', 'Easy', 'Intermediate', 'Expert'])
     })
 })
 
@@ -56,7 +64,7 @@ describe('Property 3: Preview button click stores difficulty before requesting e
                 mockRequestExpandedMode.mockClear()
 
                 const buttons = Array.from(document.querySelectorAll('button'))
-                const btn = buttons.find((b) => b.textContent === difficulty)
+                const btn = buttons.find((b) => b.textContent === DIFFICULTY_LABELS[difficulty])
                 expect(btn).toBeDefined()
 
                 btn!.click()
@@ -75,8 +83,8 @@ describe('Property 3: Preview button click stores difficulty before requesting e
             setItem: (): void => {
                 throw new Error('storage unavailable')
             },
-            removeItem: (): void => {},
-            clear: (): void => {},
+            removeItem: (): void => { },
+            clear: (): void => { },
         })
 
         vi.resetModules()

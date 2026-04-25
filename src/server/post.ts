@@ -1,5 +1,7 @@
 import { context, redis, reddit } from '@devvit/web/server'
+import type { T3 } from '@devvit/shared-types/tid.js'
 
+import { createStickyComment } from './lib/sticky-comment'
 import { DIFFICULTIES, boardToString, generatePuzzleWithDifficulty } from './lib/sudoku'
 
 /** Format a Date as DD-MM-YYYY for use in post titles. */
@@ -32,6 +34,12 @@ export const createPost = async (): Promise<{ id: string }> => {
   }
 
   await redis.hSet(`puzzle:${post.id}`, fields)
+
+  await createStickyComment(
+    { reddit, redis },
+    post.id as T3,
+    '🏆 **Score Thread** — Share your solve time! Use the "Comment My Score" button after completing the puzzle.'
+  )
 
   return post
 }

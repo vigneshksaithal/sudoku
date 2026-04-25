@@ -91,6 +91,9 @@
 		adjustedTime: number;
 	} | null = $state(null);
 	let solveError: string | null = $state(null);
+	let scoreCommentState: "idle" | "posting" | "success" | "error" =
+		$state("idle");
+	let scoreCommentError: string | null = $state(null);
 	let activeHint: TechniqueHint | null = $state(null);
 	let undoStack: UndoStack = $state([]);
 
@@ -141,6 +144,8 @@
 		mistakesCount = 0;
 		solveResult = null;
 		solveError = null;
+		scoreCommentState = "idle";
+		scoreCommentError = null;
 		activeHint = null;
 		undoStack = clearStack();
 		screen = "playing";
@@ -587,6 +592,36 @@
 		activeHint = null;
 	};
 
+	const handleScoreComment = async (): Promise<void> => {
+		scoreCommentState = "posting";
+		scoreCommentError = null;
+		try {
+			const res = await fetch("/api/score/comment", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					difficulty,
+					completionTime: elapsedSeconds,
+					hintsUsed,
+					mistakesCount,
+				}),
+			});
+			const json = await res.json();
+			if (!res.ok || json.status === "error") {
+				throw new Error(
+					json.message ?? "Failed to post score comment.",
+				);
+			}
+			scoreCommentState = "success";
+		} catch (e) {
+			scoreCommentError =
+				e instanceof Error
+					? e.message
+					: "Failed to post score comment.";
+			scoreCommentState = "error";
+		}
+	};
+
 	const changeDifficulty = (next: Difficulty): void => {
 		if (next === difficulty || puzzles === null) return;
 		try {
@@ -885,6 +920,28 @@
 			>
 				Try {nextDifficulty}
 			</button>
+			{#if scoreCommentState === "success"}
+				<p
+					class="shrink-0 text-sm font-semibold text-green-600 dark:text-green-400"
+				>
+					✓ Score posted!
+				</p>
+			{:else}
+				{#if scoreCommentState === "error" && scoreCommentError !== null}
+					<p class="shrink-0 text-xs text-red-600 dark:text-red-400">
+						{scoreCommentError}
+					</p>
+				{/if}
+				<button
+					class="min-h-11 shrink-0 rounded-lg bg-neutral-100 px-5 py-2.5 font-semibold text-neutral-700 transition-all hover:bg-neutral-200 active:bg-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+					onclick={handleScoreComment}
+					disabled={scoreCommentState === "posting"}
+				>
+					{scoreCommentState === "posting"
+						? "Posting…"
+						: "Comment My Score"}
+				</button>
+			{/if}
 		</div>
 	{:else if screen === "submit"}
 		<SubmitPuzzle onClose={() => (screen = "playing")} />

@@ -96,10 +96,17 @@ testValidate('POST /api/community/validate returns 400 for invalid JSON body', a
 
 const testSubmit = createDevvitTest({ userId: 't2_testuser', username: 'testuser' })
 
+const makeStickyComment = (id: string) => ({
+    id,
+    distinguish: vi.fn().mockResolvedValue(undefined),
+})
+
 testSubmit('POST /api/community/submit creates post, stores data, and sets cooldown on success', async ({ subredditName }) => {
     vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_newpost' } as never)
     vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
-    vi.spyOn(reddit, 'submitComment').mockResolvedValue(undefined as never)
+    vi.spyOn(reddit, 'submitComment')
+        .mockResolvedValueOnce(makeStickyComment('t1_sticky1') as never) // sticky comment
+        .mockResolvedValueOnce(undefined as never)                        // attribution comment
 
     const res = await app.request('/api/community/submit', {
         method: 'POST',
@@ -133,10 +140,56 @@ testSubmit('POST /api/community/submit creates post, stores data, and sets coold
     expect(expiresAt).toBeGreaterThan(0)
 })
 
+testSubmit('POST /api/community/submit creates sticky comment and stores stickyCommentId in Redis', async () => {
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_stickypost' } as never)
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
+    const stickyComment = makeStickyComment('t1_stickyid')
+    vi.spyOn(reddit, 'submitComment')
+        .mockResolvedValueOnce(stickyComment as never) // sticky comment
+        .mockResolvedValueOnce(undefined as never)     // attribution comment
+
+    const res = await app.request('/api/community/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puzzle: VALID_PUZZLE }),
+    })
+
+    expect(res.status).toBe(200)
+
+    // Verify stickyCommentId was stored in Redis
+    const stickyCommentId = await redis.hGet('puzzle:t3_stickypost', 'stickyCommentId')
+    expect(stickyCommentId).toBe('t1_stickyid')
+
+    // Verify distinguish was called to sticky the comment
+    expect(stickyComment.distinguish).toHaveBeenCalledWith(true)
+})
+
+testSubmit('POST /api/community/submit succeeds even when sticky comment creation fails', async ({ subredditName }) => {
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_nosticky' } as never)
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
+    vi.spyOn(reddit, 'submitComment')
+        .mockRejectedValueOnce(new Error('sticky failed')) // sticky comment fails
+        .mockResolvedValueOnce(undefined as never)         // attribution comment succeeds
+
+    const res = await app.request('/api/community/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puzzle: VALID_PUZZLE }),
+    })
+    const json = await res.json()
+
+    // Post creation should still succeed despite sticky comment failure
+    expect(res.status).toBe(200)
+    expect(json.status).toBe('success')
+    expect(json.data.postUrl).toContain('t3_nosticky')
+})
+
 testSubmit('POST /api/community/submit rejects second submission within cooldown', async () => {
     vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_post1' } as never)
     vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
-    vi.spyOn(reddit, 'submitComment').mockResolvedValue(undefined as never)
+    vi.spyOn(reddit, 'submitComment')
+        .mockResolvedValueOnce(makeStickyComment('t1_sticky2') as never) // sticky comment (first submit)
+        .mockResolvedValueOnce(undefined as never)                        // attribution comment (first submit)
 
     // First submission — should succeed
     const first = await app.request('/api/community/submit', {
@@ -157,6 +210,50 @@ testSubmit('POST /api/community/submit rejects second submission within cooldown
     expect(second.status).toBe(400)
     expect(json.status).toBe('error')
     expect(json.message).toMatch(/wait/i)
+})
+
+testSubmit('POST /api/community/submit calls submitCustomPost with runAs USER and userGeneratedContent', async () => {
+    const submitCustomPost = vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_ugcpost' } as never)
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
+    vi.spyOn(reddit, 'submitComment')
+        .mockResolvedValueOnce(makeStickyComment('t1_sticky3') as never) // sticky comment
+        .mockResolvedValueOnce(undefined as never)                        // attribution comment
+
+    await app.request('/api/community/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puzzle: VALID_PUZZLE }),
+    })
+
+    // Requirement 2.1: submitCustomPost must be called with runAs: 'USER'
+    // Requirement 2.2: submitCustomPost must include userGeneratedContent with the puzzle string
+    expect(submitCustomPost).toHaveBeenCalledOnce()
+    const callArgs = submitCustomPost.mock.calls[0]?.[0]
+    expect(callArgs).toMatchObject({
+        runAs: 'USER',
+        userGeneratedContent: { text: VALID_PUZZLE },
+    })
+})
+
+testSubmit('POST /api/community/submit posts attribution comment as app account without runAs', async () => {
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_attrpost' } as never)
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
+    const submitComment = vi.spyOn(reddit, 'submitComment')
+        .mockResolvedValueOnce(makeStickyComment('t1_sticky4') as never) // sticky comment (first call)
+        .mockResolvedValueOnce(undefined as never)                        // attribution comment (second call)
+
+    await app.request('/api/community/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puzzle: VALID_PUZZLE }),
+    })
+
+    // Requirement 2.3: attribution comment must be posted as the app account (no runAs)
+    // submitComment is called twice: first for sticky, second for attribution
+    expect(submitComment).toHaveBeenCalledTimes(2)
+    const attributionCallArgs = submitComment.mock.calls[1]?.[0]
+    expect(attributionCallArgs).not.toHaveProperty('runAs')
+    expect(attributionCallArgs?.id).toBe('t3_attrpost')
 })
 
 testSubmit('POST /api/community/submit returns 400 for invalid puzzle', async () => {
