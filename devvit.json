@@ -40,6 +40,14 @@
       }
     }
   },
+  "permissions": {
+    "reddit": {
+      "asUser": [
+        "SUBMIT_POST",
+        "SUBMIT_COMMENT"
+      ]
+    }
+  },
   "dev": {
     "subreddit": "cat543"
   },
