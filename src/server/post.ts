@@ -4,12 +4,46 @@ import type { T3 } from '@devvit/shared-types/tid.js'
 import { createStickyComment } from './lib/sticky-comment'
 import { DIFFICULTIES, boardToString, generatePuzzleWithDifficulty } from './lib/sudoku'
 
+/** Redis key for tracking the currently pinned post. */
+const PINNED_POST_KEY = 'pinnedPostId'
+
 /** Format a Date as DD-MM-YYYY for use in post titles. */
 export const formatPostDate = (date: Date): string => {
   const dd = String(date.getDate()).padStart(2, '0')
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const yyyy = date.getFullYear()
   return `${dd}-${mm}-${yyyy}`
+}
+
+/**
+ * Unpin the previously pinned post, if any. Errors are swallowed so post
+ * creation is never blocked by a missing mod permission.
+ */
+const unpinPreviousPost = async (): Promise<void> => {
+  const previousPostId = await redis.get(PINNED_POST_KEY)
+  if (!previousPostId) return
+
+  try {
+    const previousPost = await reddit.getPostById(previousPostId as T3)
+    await previousPost.unsticky()
+  } catch {
+    // Silently ignore — app may not have mod permissions or post may be deleted
+  }
+}
+
+/**
+ * Pin the given post to sticky slot 1. Errors are swallowed so post creation
+ * is never blocked by a missing mod permission.
+ */
+const pinPost = async (postId: string): Promise<void> => {
+  try {
+    const post = await reddit.getPostById(postId as T3)
+    await post.sticky(1)
+  } catch {
+    // Silently ignore — app may not have mod permissions
+  }
+
+  await redis.set(PINNED_POST_KEY, postId)
 }
 
 export const createPost = async (): Promise<{ id: string }> => {
@@ -40,6 +74,9 @@ export const createPost = async (): Promise<{ id: string }> => {
     post.id as T3,
     '🏆 **Score Thread** — Share your solve time! Use the "Comment My Score" button after completing the puzzle.'
   )
+
+  await unpinPreviousPost()
+  await pinPost(post.id)
 
   return post
 }

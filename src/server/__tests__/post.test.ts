@@ -5,6 +5,8 @@ import { expect, vi } from 'vitest'
 import * as stickyCommentModule from '../lib/sticky-comment'
 import { createPost } from '../post'
 
+const PINNED_POST_KEY = 'pinnedPostId'
+
 const test = createDevvitTest()
 
 const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
@@ -68,3 +70,79 @@ test('createPost propagates Reddit API errors', async () => {
 
     await expect(createPost()).rejects.toThrow('Rate limited')
 })
+
+test('createPost stickies the new post to slot 1', async () => {
+    const mockSticky = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_newpost' } as never)
+    vi.spyOn(reddit, 'getPostById').mockResolvedValue({ id: 't3_newpost', sticky: mockSticky } as never)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc2' })
+
+    await createPost()
+
+    expect(mockSticky).toHaveBeenCalledWith(1)
+}, 60_000)
+
+test('createPost stores the new post id as pinnedPostId in Redis', async () => {
+    const mockSticky = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_pinned1' } as never)
+    vi.spyOn(reddit, 'getPostById').mockResolvedValue({ id: 't3_pinned1', sticky: mockSticky } as never)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc3' })
+
+    await createPost()
+
+    const stored = await redis.get(PINNED_POST_KEY)
+    expect(stored).toBe('t3_pinned1')
+}, 60_000)
+
+test('createPost unstickies the previously pinned post before pinning the new one', async () => {
+    const mockUnsticky = vi.fn().mockResolvedValue(undefined)
+    const mockSticky = vi.fn().mockResolvedValue(undefined)
+
+    await redis.set(PINNED_POST_KEY, 't3_oldpost')
+
+    vi.spyOn(reddit, 'getPostById')
+        .mockResolvedValueOnce({ id: 't3_oldpost', unsticky: mockUnsticky } as never)
+        .mockResolvedValueOnce({ id: 't3_newpost2', sticky: mockSticky } as never)
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_newpost2' } as never)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc4' })
+
+    await createPost()
+
+    expect(mockUnsticky).toHaveBeenCalled()
+    expect(mockSticky).toHaveBeenCalledWith(1)
+}, 60_000)
+
+test('createPost succeeds silently when sticky call fails', async () => {
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_stickyfail' } as never)
+    vi.spyOn(reddit, 'getPostById').mockResolvedValue({
+        id: 't3_stickyfail',
+        sticky: vi.fn().mockRejectedValue(new Error('No mod permissions')),
+    } as never)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc5' })
+
+    const result = await createPost()
+
+    expect(result).toEqual({ id: 't3_stickyfail' })
+    const stored = await redis.get(PINNED_POST_KEY)
+    expect(stored).toBe('t3_stickyfail')
+}, 60_000)
+
+test('createPost succeeds silently when unsticky call fails', async () => {
+    await redis.set(PINNED_POST_KEY, 't3_oldpost2')
+
+    vi.spyOn(reddit, 'getPostById')
+        .mockResolvedValueOnce({
+            id: 't3_oldpost2',
+            unsticky: vi.fn().mockRejectedValue(new Error('No mod permissions')),
+        } as never)
+        .mockResolvedValueOnce({
+            id: 't3_newpost3',
+            sticky: vi.fn().mockResolvedValue(undefined),
+        } as never)
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_newpost3' } as never)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc6' })
+
+    const result = await createPost()
+
+    expect(result).toEqual({ id: 't3_newpost3' })
+}, 60_000)
