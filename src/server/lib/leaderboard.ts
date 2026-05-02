@@ -12,6 +12,7 @@ export type LeaderboardEntry = {
     hintsUsed: number
     mistakesCount: number
     adjustedTime: number
+    notesUsed: boolean | undefined
 }
 
 export type LeaderboardResponse = {
@@ -38,18 +39,19 @@ const isNonNegativeInteger = (value: unknown): value is number =>
 /** Validate and parse a solve submission body. Returns parsed fields or an error string. */
 export const validateSolveInput = (
     body: unknown
-): { difficulty: ValidDifficulty; completionTime: number; hintsUsed: number; mistakesCount: number } | string => {
+): { difficulty: ValidDifficulty; completionTime: number; hintsUsed: number; mistakesCount: number; notesUsed: boolean } | string => {
     if (!body || typeof body !== 'object') return 'Invalid request body'
 
     const obj = body as Record<string, unknown>
-    const { difficulty, completionTime, hintsUsed, mistakesCount } = obj
+    const { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed } = obj
 
     if (!isValidDifficulty(difficulty)) return 'Invalid difficulty'
     if (!isNonNegativeInteger(completionTime)) return 'Invalid completionTime: must be a non-negative integer'
     if (!isNonNegativeInteger(hintsUsed)) return 'Invalid hintsUsed: must be a non-negative integer'
     if (!isNonNegativeInteger(mistakesCount)) return 'Invalid mistakesCount: must be a non-negative integer'
+    if (typeof notesUsed !== 'boolean') return 'Invalid notesUsed: must be a boolean'
 
-    return { difficulty, completionTime, hintsUsed, mistakesCount }
+    return { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed }
 }
 
 // ─── Pure Functions ───────────────────────────────────────────────────────────
@@ -64,10 +66,13 @@ const parseSolveRecord = (
     data: Record<string, string>,
     rank: number
 ): LeaderboardEntry | null => {
-    const { username, completionTime, hintsUsed, mistakesCount, adjustedTime } = data
+    const { username, completionTime, hintsUsed, mistakesCount, adjustedTime, notesUsed: notesUsedRaw } = data
     if (!username || completionTime === undefined || hintsUsed === undefined || mistakesCount === undefined || adjustedTime === undefined) {
         return null
     }
+    const notesUsed = notesUsedRaw === 'true' ? true
+        : notesUsedRaw === 'false' ? false
+            : undefined
     return {
         rank,
         username,
@@ -75,6 +80,7 @@ const parseSolveRecord = (
         hintsUsed: parseInt(hintsUsed, 10),
         mistakesCount: parseInt(mistakesCount, 10),
         adjustedTime: parseInt(adjustedTime, 10),
+        notesUsed,
     }
 }
 
@@ -88,8 +94,9 @@ export const recordSolve = async (params: {
     completionTime: number
     hintsUsed: number
     mistakesCount: number
+    notesUsed: boolean
 }): Promise<{ postRank: number; globalRank: number; adjustedTime: number } | string> => {
-    const { redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount } = params
+    const { redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed } = params
 
     const solveKey = `solve:${postId}:${difficulty}:${userId}`
     const isDuplicate = await redis.exists(solveKey)
@@ -103,6 +110,7 @@ export const recordSolve = async (params: {
         hintsUsed: String(hintsUsed),
         mistakesCount: String(mistakesCount),
         adjustedTime: String(adjustedTime),
+        notesUsed: String(notesUsed),
     })
 
     const postLeaderboardKey = `leaderboard:${postId}:${difficulty}`
@@ -121,6 +129,7 @@ export const recordSolve = async (params: {
             hintsUsed: String(hintsUsed),
             mistakesCount: String(mistakesCount),
             adjustedTime: String(adjustedTime),
+            notesUsed: String(notesUsed),
         })
     }
 

@@ -251,6 +251,128 @@ test('Property 5: Invalid input rejection', () => {
     )
 })
 
+// ─── Feature: candidate-size-and-notes-leaderboard ───────────────────────────
+// ─── Property 1: Solve input validation accepts notesUsed iff boolean ─────────
+/**
+ * **Validates: Requirements 3.2, 3.3**
+ *
+ * For any valid base payload (valid difficulty, non-negative integer
+ * completionTime/hintsUsed/mistakesCount), `validateSolveInput` returns a
+ * parsed object (not an error string) if and only if `notesUsed` is a boolean.
+ * For any non-boolean value of `notesUsed`, the validator returns an error string.
+ *
+ * Tag: Feature: candidate-size-and-notes-leaderboard, Property 1
+ */
+test('Feature: candidate-size-and-notes-leaderboard — Property 1: validateSolveInput accepts notesUsed iff boolean', () => {
+    // Boolean values → should return parsed object
+    fc.assert(
+        fc.property(
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            (difficulty, completionTime, hintsUsed, mistakesCount, notesUsed) => {
+                const body = { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed }
+                const result = validateSolveInput(body)
+                expect(typeof result).toBe('object')
+            }
+        ),
+        { numRuns: 100 }
+    )
+
+    // Non-boolean values → should return error string
+    const arbNonBoolean = fc.oneof(
+        fc.integer(),
+        fc.float({ noNaN: true }),
+        fc.string(),
+        fc.constant(null),
+        fc.constant(undefined),
+        fc.array(fc.anything()),
+        fc.record({ x: fc.integer() }),
+    )
+
+    fc.assert(
+        fc.property(
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonBoolean,
+            (difficulty, completionTime, hintsUsed, mistakesCount, notesUsed) => {
+                const body = { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed }
+                const result = validateSolveInput(body)
+                expect(typeof result).toBe('string')
+            }
+        ),
+        { numRuns: 100 }
+    )
+})
+
+// ─── Feature: candidate-size-and-notes-leaderboard ───────────────────────────
+// ─── Property 2: Notes-used round-trip through Redis ─────────────────────────
+/**
+ * **Validates: Requirements 4.1, 4.2**
+ *
+ * For any valid solve with boolean `notesUsed`, after `recordSolve` + reading
+ * back via `getLeaderboard`, the `notesUsed` field on the returned
+ * `LeaderboardEntry` equals the original boolean value.
+ * The stored Redis value is the string `"true"` or `"false"`.
+ *
+ * Tag: Feature: candidate-size-and-notes-leaderboard, Property 2
+ */
+test('Feature: candidate-size-and-notes-leaderboard — Property 2: notes-used round-trip through Redis', async () => {
+    let runCounter = 0
+    await fc.assert(
+        fc.asyncProperty(
+            arbUsername,
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            async (username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed) => {
+                // Use a counter to guarantee unique postId+userId per run, avoiding 'Already solved'
+                const run = runCounter++
+                const postId = `t3_prop2_${run}`
+                const userId = `t2_prop2_${run}`
+
+                // Record the solve
+                const result = await recordSolve({
+                    redis,
+                    postId,
+                    userId,
+                    username,
+                    difficulty,
+                    completionTime,
+                    hintsUsed,
+                    mistakesCount,
+                    notesUsed,
+                })
+                expect(typeof result).toBe('object')
+
+                // Verify the raw Redis hash stores "true" or "false" (not a boolean)
+                const rawData = await redis.hGetAll(`solve:${postId}:${difficulty}:${userId}`)
+                const storedNotesUsed = rawData['notesUsed']
+                expect(storedNotesUsed === 'true' || storedNotesUsed === 'false').toBe(true)
+                expect(storedNotesUsed).toBe(String(notesUsed))
+
+                // Verify round-trip via getLeaderboard: parsed LeaderboardEntry.notesUsed equals original boolean
+                const leaderboard = await getLeaderboard({
+                    redis,
+                    key: `leaderboard:${postId}:${difficulty}`,
+                    solveKeyPrefix: `solve:${postId}:${difficulty}`,
+                    userId,
+                })
+                const entry = leaderboard.entries[0]
+                expect(entry).toBeDefined()
+                expect(entry!.notesUsed).toBe(notesUsed)
+            }
+        ),
+        { numRuns: 100 }
+    )
+})
+
 // ─── Property 6: Leaderboard ordering invariant ───────────────────────────────
 /**
  * **Validates: Requirements 2.1, 3.1**

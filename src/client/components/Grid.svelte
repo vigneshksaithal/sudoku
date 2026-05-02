@@ -147,7 +147,7 @@
             {#each DIGITS as digit (digit)}
               <span
                 class={[
-                  "flex items-center justify-center text-[0.5rem] leading-none sm:text-[0.6rem]",
+                  "flex items-center justify-center text-[0.65rem] leading-none sm:text-[0.75rem]",
                   highlightDigit === digit &&
                     notesBoard[r]?.[c]?.has(digit) &&
                     "font-bold text-blue-600",

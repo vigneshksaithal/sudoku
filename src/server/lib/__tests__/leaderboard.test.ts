@@ -43,59 +43,61 @@ describe('validateSolveInput', () => {
             completionTime: 120,
             hintsUsed: 2,
             mistakesCount: 3,
+            notesUsed: true,
         })
         expect(result).toEqual({
             difficulty: 'easy',
             completionTime: 120,
             hintsUsed: 2,
             mistakesCount: 3,
+            notesUsed: true,
         })
     })
 
     it('accepts all valid difficulties', () => {
         for (const d of ['simple', 'easy', 'intermediate', 'expert']) {
-            const result = validateSolveInput({ difficulty: d, completionTime: 0, hintsUsed: 0, mistakesCount: 0 })
+            const result = validateSolveInput({ difficulty: d, completionTime: 0, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
             expect(typeof result).toBe('object')
         }
     })
 
     it('returns error string for invalid difficulty', () => {
-        const result = validateSolveInput({ difficulty: 'hard', completionTime: 0, hintsUsed: 0, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'hard', completionTime: 0, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
     it('returns error string for negative completionTime', () => {
-        const result = validateSolveInput({ difficulty: 'easy', completionTime: -1, hintsUsed: 0, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: -1, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
     it('returns error string for negative hintsUsed', () => {
-        const result = validateSolveInput({ difficulty: 'easy', completionTime: 0, hintsUsed: -5, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 0, hintsUsed: -5, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
     it('returns error string for negative mistakesCount', () => {
-        const result = validateSolveInput({ difficulty: 'easy', completionTime: 0, hintsUsed: 0, mistakesCount: -1 })
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 0, hintsUsed: 0, mistakesCount: -1, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
     it('returns error string for float completionTime', () => {
-        const result = validateSolveInput({ difficulty: 'easy', completionTime: 1.5, hintsUsed: 0, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 1.5, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
     it('returns error string for float hintsUsed', () => {
-        const result = validateSolveInput({ difficulty: 'easy', completionTime: 0, hintsUsed: 0.5, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 0, hintsUsed: 0.5, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
     it('returns error string for string completionTime', () => {
-        const result = validateSolveInput({ difficulty: 'easy', completionTime: '120', hintsUsed: 0, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: '120', hintsUsed: 0, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
     it('returns error string for null completionTime', () => {
-        const result = validateSolveInput({ difficulty: 'easy', completionTime: null, hintsUsed: 0, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: null, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('string')
     })
 
@@ -110,8 +112,45 @@ describe('validateSolveInput', () => {
     })
 
     it('accepts zero values for all numeric fields', () => {
-        const result = validateSolveInput({ difficulty: 'simple', completionTime: 0, hintsUsed: 0, mistakesCount: 0 })
+        const result = validateSolveInput({ difficulty: 'simple', completionTime: 0, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
         expect(typeof result).toBe('object')
+    })
+
+    // notesUsed validation — Requirements 3.2, 3.3, 3.4
+    it('accepts payload with notesUsed: true', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: true })
+        expect(typeof result).toBe('object')
+        if (typeof result === 'object') {
+            expect(result.notesUsed).toBe(true)
+        }
+    })
+
+    it('accepts payload with notesUsed: false', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
+        expect(typeof result).toBe('object')
+        if (typeof result === 'object') {
+            expect(result.notesUsed).toBe(false)
+        }
+    })
+
+    it('returns error string for notesUsed: "true" (string)', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: 'true' })
+        expect(typeof result).toBe('string')
+    })
+
+    it('returns error string for notesUsed: 1 (number)', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: 1 })
+        expect(typeof result).toBe('string')
+    })
+
+    it('returns error string for notesUsed: null', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: null })
+        expect(typeof result).toBe('string')
+    })
+
+    it('returns error string for missing notesUsed', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0 })
+        expect(typeof result).toBe('string')
     })
 })
 
@@ -130,6 +169,7 @@ describe('recordSolve', () => {
             completionTime: 120,
             hintsUsed: 1,
             mistakesCount: 0,
+            notesUsed: false,
         })
         expect(typeof result).toBe('object')
         if (typeof result === 'object') {
@@ -149,6 +189,7 @@ describe('recordSolve', () => {
             completionTime: 100,
             hintsUsed: 0,
             mistakesCount: 0,
+            notesUsed: false,
         }
         await recordSolve(params)
         const second = await recordSolve(params)
@@ -166,6 +207,7 @@ describe('recordSolve', () => {
             completionTime: 200,
             hintsUsed: 2,
             mistakesCount: 5,
+            notesUsed: false,
         })
         const data = await redis.hGetAll('solve:t3_post3:simple:t2_user3')
         expect(data['username']).toBe('carol')
@@ -183,6 +225,7 @@ describe('recordSolve', () => {
             difficulty: 'expert' as const,
             hintsUsed: 0,
             mistakesCount: 0,
+            notesUsed: false,
         }
         // First solve on post1 with time 300
         await recordSolve({ ...baseParams, postId: 't3_post_a', completionTime: 300 })
@@ -198,6 +241,71 @@ describe('recordSolve', () => {
         await recordSolve({ ...baseParams, postId: 't3_post_c', completionTime: 200 })
         const score3 = await redis.zScore('leaderboard:global:expert', 't2_user4')
         expect(score3).toBe(200)
+    })
+
+    // notesUsed persistence — Requirements 4.1, 4.2, 4.3, 7.3
+    test('stores notesUsed as "true" in post-level Redis hash when notesUsed is true', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_notes1',
+            userId: 't2_notes1',
+            username: 'eve',
+            difficulty: 'easy',
+            completionTime: 100,
+            hintsUsed: 0,
+            mistakesCount: 0,
+            notesUsed: true,
+        })
+        const data = await redis.hGetAll('solve:t3_notes1:easy:t2_notes1')
+        expect(data['notesUsed']).toBe('true')
+    })
+
+    test('stores notesUsed as "false" in post-level Redis hash when notesUsed is false', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_notes2',
+            userId: 't2_notes2',
+            username: 'frank',
+            difficulty: 'easy',
+            completionTime: 100,
+            hintsUsed: 0,
+            mistakesCount: 0,
+            notesUsed: false,
+        })
+        const data = await redis.hGetAll('solve:t3_notes2:easy:t2_notes2')
+        expect(data['notesUsed']).toBe('false')
+    })
+
+    test('stores notesUsed as "true" in global-level Redis hash when notesUsed is true', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_notes3',
+            userId: 't2_notes3',
+            username: 'grace',
+            difficulty: 'intermediate',
+            completionTime: 150,
+            hintsUsed: 0,
+            mistakesCount: 0,
+            notesUsed: true,
+        })
+        const data = await redis.hGetAll('solve:global:intermediate:t2_notes3')
+        expect(data['notesUsed']).toBe('true')
+    })
+
+    test('stores notesUsed as "false" in global-level Redis hash when notesUsed is false', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_notes4',
+            userId: 't2_notes4',
+            username: 'henry',
+            difficulty: 'intermediate',
+            completionTime: 150,
+            hintsUsed: 0,
+            mistakesCount: 0,
+            notesUsed: false,
+        })
+        const data = await redis.hGetAll('solve:global:intermediate:t2_notes4')
+        expect(data['notesUsed']).toBe('false')
     })
 })
 
@@ -228,6 +336,7 @@ describe('getLeaderboard', () => {
                 completionTime: i * 10,
                 hintsUsed: 0,
                 mistakesCount: 0,
+                notesUsed: false,
             })
         }
         const result = await getLeaderboard({
@@ -259,6 +368,7 @@ describe('getLeaderboard', () => {
                 completionTime: i * 10,
                 hintsUsed: 0,
                 mistakesCount: 0,
+                notesUsed: false,
             })
         }
         // Seed user11 with a worse time (rank 11)
@@ -271,6 +381,7 @@ describe('getLeaderboard', () => {
             completionTime: 200,
             hintsUsed: 0,
             mistakesCount: 0,
+            notesUsed: false,
         })
         const result = await getLeaderboard({
             redis,
@@ -296,6 +407,7 @@ describe('getLeaderboard', () => {
             completionTime: 50,
             hintsUsed: 0,
             mistakesCount: 0,
+            notesUsed: false,
         })
         const result = await getLeaderboard({
             redis,
@@ -305,5 +417,103 @@ describe('getLeaderboard', () => {
         })
         expect(result.entries).toHaveLength(1)
         expect(result.userEntry).toBeNull()
+    })
+
+    // parseSolveRecord notesUsed parsing — Requirements 4.1, 4.2, 4.3, 7.3
+    // Tested indirectly via getLeaderboard by seeding Redis directly with hSet
+
+    test('parseSolveRecord parses notesUsed: "true" to true', async () => {
+        const postId = 't3_parse1'
+        const difficulty = 'easy'
+        const userId = 't2_parse1'
+        // Seed Redis directly with notesUsed="true"
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'alice',
+            completionTime: '100',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '100',
+            notesUsed: 'true',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 100 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect(result.entries[0]!.notesUsed).toBe(true)
+    })
+
+    test('parseSolveRecord parses notesUsed: "false" to false', async () => {
+        const postId = 't3_parse2'
+        const difficulty = 'easy'
+        const userId = 't2_parse2'
+        // Seed Redis directly with notesUsed="false"
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'bob',
+            completionTime: '200',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '200',
+            notesUsed: 'false',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 200 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect(result.entries[0]!.notesUsed).toBe(false)
+    })
+
+    test('parseSolveRecord parses missing notesUsed to undefined (legacy records)', async () => {
+        const postId = 't3_parse3'
+        const difficulty = 'easy'
+        const userId = 't2_parse3'
+        // Seed Redis directly WITHOUT notesUsed field (legacy record)
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'carol',
+            completionTime: '300',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '300',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 300 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect(result.entries[0]!.notesUsed).toBeUndefined()
+    })
+
+    test('parseSolveRecord parses unexpected string values (e.g. "yes") to undefined', async () => {
+        const postId = 't3_parse4'
+        const difficulty = 'easy'
+        const userId = 't2_parse4'
+        // Seed Redis directly with an unexpected notesUsed value
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'dave',
+            completionTime: '400',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '400',
+            notesUsed: 'yes',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 400 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect(result.entries[0]!.notesUsed).toBeUndefined()
     })
 })

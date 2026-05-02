@@ -17,6 +17,7 @@ const validBody = JSON.stringify({
     completionTime: 154,
     hintsUsed: 0,
     mistakesCount: 0,
+    notesUsed: false,
 })
 
 const postScore = (body: string): Promise<Response> =>
@@ -59,6 +60,7 @@ testHappy('POST /api/score/comment formats comment text with difficulty and time
         completionTime: 154,
         hintsUsed: 1,
         mistakesCount: 2,
+        notesUsed: true,
     }))
 
     const callArgs = submitComment.mock.calls[0]?.[0]
@@ -66,6 +68,38 @@ testHappy('POST /api/score/comment formats comment text with difficulty and time
     expect(callArgs?.text).toContain('2:34')
     expect(callArgs?.text).toContain('1')  // hints
     expect(callArgs?.text).toContain('2')  // mistakes
+})
+
+testHappy('POST /api/score/comment includes "📝 Notes | Yes |" in comment text when notesUsed is true', async () => {
+    await redis.hSet(`puzzle:${POST_ID}`, { stickyCommentId: STICKY_COMMENT_ID })
+    const submitComment = vi.spyOn(reddit, 'submitComment').mockResolvedValue(undefined as never)
+
+    await postScore(JSON.stringify({
+        difficulty: 'easy',
+        completionTime: 120,
+        hintsUsed: 0,
+        mistakesCount: 0,
+        notesUsed: true,
+    }))
+
+    const callArgs = submitComment.mock.calls[0]?.[0]
+    expect(callArgs?.text).toContain('📝 Notes | Yes |')
+})
+
+testHappy('POST /api/score/comment includes "📝 Notes | No |" in comment text when notesUsed is false', async () => {
+    await redis.hSet(`puzzle:${POST_ID}`, { stickyCommentId: STICKY_COMMENT_ID })
+    const submitComment = vi.spyOn(reddit, 'submitComment').mockResolvedValue(undefined as never)
+
+    await postScore(JSON.stringify({
+        difficulty: 'easy',
+        completionTime: 120,
+        hintsUsed: 0,
+        mistakesCount: 0,
+        notesUsed: false,
+    }))
+
+    const callArgs = submitComment.mock.calls[0]?.[0]
+    expect(callArgs?.text).toContain('📝 Notes | No |')
 })
 
 // ─── 401: user not logged in ──────────────────────────────────────────────────

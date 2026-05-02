@@ -25,6 +25,7 @@ const solveBody = (overrides: Record<string, unknown> = {}): string =>
         completionTime: 120,
         hintsUsed: 1,
         mistakesCount: 2,
+        notesUsed: false,
         ...overrides,
     })
 
@@ -93,6 +94,44 @@ testWithUser('POST /api/solve returns 400 when solution not found in Redis', asy
     expect(json.message).toBe('Solution not found')
 })
 
+testWithUser('POST /api/solve stores notesUsed as "true" in Redis when notesUsed is true', async () => {
+    await seedPuzzle('easy')
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
+
+    const res = await postSolve(solveBody({ notesUsed: true }))
+    expect(res.status).toBe(200)
+
+    const stored = await redis.hGet(`solve:${POST_ID}:easy:t2_testuser`, 'notesUsed')
+    expect(stored).toBe('true')
+})
+
+testWithUser('POST /api/solve stores notesUsed as "false" in Redis when notesUsed is false', async () => {
+    await seedPuzzle('easy')
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('testuser')
+
+    const res = await postSolve(solveBody({ notesUsed: false }))
+    expect(res.status).toBe(200)
+
+    const stored = await redis.hGet(`solve:${POST_ID}:easy:t2_testuser`, 'notesUsed')
+    expect(stored).toBe('false')
+})
+
+testWithUser('POST /api/solve returns 400 for non-boolean notesUsed (string)', async () => {
+    const res = await postSolve(solveBody({ notesUsed: 'true' }))
+    const json = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(json.status).toBe('error')
+})
+
+testWithUser('POST /api/solve returns 400 for non-boolean notesUsed (number)', async () => {
+    const res = await postSolve(solveBody({ notesUsed: 1 }))
+    const json = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(json.status).toBe('error')
+})
+
 // Note: the test harness always provides a userId (defaults to 't2_testuser').
 // The "user not logged in" guard is verified by the leaderboard lib unit tests.
 // Here we verify the route returns 400 for missing auth by testing the next guard
@@ -150,6 +189,47 @@ testPostLb('GET /api/leaderboard/post returns empty entries array when no solves
     expect(res.status).toBe(200)
     expect(json.data.entries).toEqual([])
     expect(json.data.userEntry).toBeNull()
+})
+
+testPostLb('GET /api/leaderboard/post response entries include notesUsed field when seeded with notesUsed: "true"', async () => {
+    const difficulty = 'easy'
+    await redis.hSet(`solve:${POST_ID}:${difficulty}:t2_alice`, {
+        username: 'alice',
+        completionTime: '90',
+        hintsUsed: '0',
+        mistakesCount: '0',
+        adjustedTime: '90',
+        notesUsed: 'true',
+    })
+    await redis.zAdd(`leaderboard:${POST_ID}:${difficulty}`, { member: 't2_alice', score: 90 })
+
+    const res = await app.request(`/api/leaderboard/post?difficulty=${difficulty}`)
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.data.entries).toHaveLength(1)
+    expect(json.data.entries[0].notesUsed).toBe(true)
+})
+
+testPostLb('GET /api/leaderboard/post handles legacy entries without notesUsed gracefully', async () => {
+    const difficulty = 'simple'
+    await redis.hSet(`solve:${POST_ID}:${difficulty}:t2_alice`, {
+        username: 'alice',
+        completionTime: '200',
+        hintsUsed: '1',
+        mistakesCount: '0',
+        adjustedTime: '230',
+        // notesUsed intentionally omitted — legacy record
+    })
+    await redis.zAdd(`leaderboard:${POST_ID}:${difficulty}`, { member: 't2_alice', score: 230 })
+
+    const res = await app.request(`/api/leaderboard/post?difficulty=${difficulty}`)
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.data.entries).toHaveLength(1)
+    // Legacy records have notesUsed: undefined, which JSON.stringify omits
+    expect(json.data.entries[0].notesUsed).toBeUndefined()
 })
 
 testPostLb('GET /api/leaderboard/post includes user entry when outside top 10', async () => {

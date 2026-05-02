@@ -23,12 +23,22 @@ const difficultyArb = fc.string({ minLength: 1 })
 /** Non-negative integer for time/hints/mistakes */
 const nonNegativeIntArb = fc.nat()
 
-/** A valid ScoreCommentData record */
+/** A valid ScoreCommentData record (without notesUsed — used by Properties 1 & 2) */
 const scoreCommentDataArb = fc.record({
     difficulty: difficultyArb,
     completionTime: nonNegativeIntArb,
     hintsUsed: nonNegativeIntArb,
     mistakesCount: nonNegativeIntArb,
+    notesUsed: fc.boolean(),
+})
+
+/** A valid ScoreCommentData record with explicit boolean notesUsed */
+const scoreCommentDataWithNotesArb = fc.record({
+    difficulty: difficultyArb,
+    completionTime: nonNegativeIntArb,
+    hintsUsed: nonNegativeIntArb,
+    mistakesCount: nonNegativeIntArb,
+    notesUsed: fc.boolean(),
 })
 
 // ---------------------------------------------------------------------------
@@ -169,6 +179,7 @@ describe('Property 3: Score endpoint input validation', () => {
         completionTime: nonNegativeIntArb,
         hintsUsed: nonNegativeIntArb,
         mistakesCount: nonNegativeIntArb,
+        notesUsed: fc.boolean(),
     })
 
     /** An invalid difficulty: any string not in the valid set */
@@ -371,6 +382,7 @@ describe('Property 3: Score endpoint input validation', () => {
                 completionTime: nonNegativeIntArb,
                 hintsUsed: nonNegativeIntArb,
                 mistakesCount: nonNegativeIntArb,
+                notesUsed: fc.boolean(),
             }).map((p) => ({ payload: p as unknown, valid: false })),
             // negative numeric field
             fc.record({
@@ -378,6 +390,7 @@ describe('Property 3: Score endpoint input validation', () => {
                 completionTime: fc.oneof(nonNegativeIntArb, negativeIntArb),
                 hintsUsed: fc.oneof(nonNegativeIntArb, negativeIntArb),
                 mistakesCount: fc.oneof(nonNegativeIntArb, negativeIntArb),
+                notesUsed: fc.boolean(),
             }).map((p) => ({
                 payload: p as unknown,
                 valid: p.completionTime >= 0 && p.hintsUsed >= 0 && p.mistakesCount >= 0,
@@ -389,6 +402,60 @@ describe('Property 3: Score endpoint input validation', () => {
                 const result = validateSolveInput(payload)
                 const accepted = typeof result !== 'string'
                 return accepted === valid
+            }),
+            { numRuns: 100 }
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
+// Property 3: Score comment includes notes indicator
+// ---------------------------------------------------------------------------
+
+describe('Property 3: Score comment includes notes indicator', () => {
+    /**
+     * Feature: candidate-size-and-notes-leaderboard, Property 3
+     *
+     * For any valid ScoreCommentData with boolean notesUsed, the output of
+     * formatScoreComment SHALL contain "📝 Notes | Yes |" when notesUsed is true,
+     * and "📝 Notes | No |" when notesUsed is false. The presence of "Yes" in the
+     * notes row corresponds exactly to notesUsed === true.
+     *
+     * Validates: Requirements 6.2
+     */
+
+    it('contains "📝 Notes | Yes |" when notesUsed is true', () => {
+        const trueNotesArb = scoreCommentDataWithNotesArb.filter((d) => d.notesUsed === true)
+
+        fc.assert(
+            fc.property(trueNotesArb, (data) => {
+                const result = formatScoreComment(data)
+                return result.includes('📝 Notes | Yes |')
+            }),
+            { numRuns: 100 }
+        )
+    })
+
+    it('contains "📝 Notes | No |" when notesUsed is false', () => {
+        const falseNotesArb = scoreCommentDataWithNotesArb.filter((d) => d.notesUsed === false)
+
+        fc.assert(
+            fc.property(falseNotesArb, (data) => {
+                const result = formatScoreComment(data)
+                return result.includes('📝 Notes | No |')
+            }),
+            { numRuns: 100 }
+        )
+    })
+
+    it('"Yes" in notes row corresponds exactly to notesUsed === true', () => {
+        fc.assert(
+            fc.property(scoreCommentDataWithNotesArb, (data) => {
+                const result = formatScoreComment(data)
+                const hasYes = result.includes('📝 Notes | Yes |')
+                const hasNo = result.includes('📝 Notes | No |')
+                // Exactly one of Yes/No is present, and it matches notesUsed
+                return hasYes === data.notesUsed && hasNo === !data.notesUsed
             }),
             { numRuns: 100 }
         )

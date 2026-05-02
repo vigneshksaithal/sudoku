@@ -5,6 +5,7 @@ export type ScoreCommentData = {
     completionTime: number // seconds
     hintsUsed: number
     mistakesCount: number
+    notesUsed: boolean
 }
 
 // ─── Pure Functions ───────────────────────────────────────────────────────────
@@ -23,7 +24,7 @@ const formatTime = (totalSeconds: number): string => {
  * Includes a "Perfect solve!" line when hintsUsed === 0 and mistakesCount === 0.
  */
 export const formatScoreComment = (data: ScoreCommentData): string => {
-    const { difficulty, completionTime, hintsUsed, mistakesCount } = data
+    const { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed } = data
     const formattedTime = formatTime(completionTime)
     const isPerfect = hintsUsed === 0 && mistakesCount === 0
 
@@ -35,6 +36,7 @@ export const formatScoreComment = (data: ScoreCommentData): string => {
         `| ⏱️ Time | ${formattedTime} |`,
         `| 💡 Hints | ${hintsUsed} |`,
         `| ❌ Mistakes | ${mistakesCount} |`,
+        `| 📝 Notes | ${notesUsed ? 'Yes' : 'No'} |`,
     ].join('\n')
 
     const parts = [header, table]

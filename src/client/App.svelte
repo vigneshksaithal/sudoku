@@ -85,6 +85,7 @@
 	let notesBoard: NotesBoard = $state(createEmptyNotesBoard());
 	let hintsUsed: number = $state(0);
 	let mistakesCount: number = $state(0);
+	let notesUsed: boolean = $state(false);
 	let solveResult: {
 		postRank: number;
 		globalRank: number;
@@ -142,6 +143,7 @@
 		notesMode = false;
 		hintsUsed = 0;
 		mistakesCount = 0;
+		notesUsed = false;
 		solveResult = null;
 		solveError = null;
 		scoreCommentState = "idle";
@@ -223,6 +225,7 @@
 			undoStack,
 			captureSnapshot(board, notesBoard, hintsUsed),
 		);
+		notesUsed = true;
 		if (hasAutoCandidates(board, notesBoard)) {
 			clearAutoCandidates(board, notesBoard);
 		} else {
@@ -243,6 +246,7 @@
 					undoStack,
 					captureSnapshot(board, notesBoard, hintsUsed),
 				);
+				notesUsed = true;
 				toggleNote(notesBoard, row, col, lockedDigit);
 			} else {
 				undoStack = pushSnapshot(
@@ -287,6 +291,7 @@
 				captureSnapshot(board, notesBoard, hintsUsed),
 			);
 			if (notesMode) {
+				notesUsed = true;
 				applyAutoNotes(board, notesBoard, selection, lockedDigit);
 			} else {
 				const placed = batchPlaceDigit(
@@ -339,6 +344,7 @@
 					undoStack,
 					captureSnapshot(board, notesBoard, hintsUsed),
 				);
+				notesUsed = true;
 				toggleNote(notesBoard, selectedRow, selectedCol, parseInt(key));
 			}
 			return;
@@ -375,6 +381,7 @@
 						captureSnapshot(board, notesBoard, hintsUsed),
 					);
 					if (notesMode) {
+						notesUsed = true;
 						toggleNote(notesBoard, newRow, newCol, lockedDigit);
 					} else {
 						if (
@@ -417,6 +424,7 @@
 					captureSnapshot(board, notesBoard, hintsUsed),
 				);
 				if (notesMode) {
+					notesUsed = true;
 					applyAutoNotes(board, notesBoard, selection, lockedDigit);
 				} else {
 					const placed = batchPlaceDigit(
@@ -445,6 +453,7 @@
 		);
 
 		if (isMultiSelection(selection)) {
+			notesUsed = true;
 			applyAutoNotes(board, notesBoard, selection, num);
 			return;
 		}
@@ -456,6 +465,7 @@
 
 		if (notesMode) {
 			if (cell.value !== 0) return;
+			notesUsed = true;
 			toggleNote(notesBoard, selectedRow, selectedCol, num);
 		} else {
 			board[selectedRow]![selectedCol] = { ...cell, value: num };
@@ -534,6 +544,7 @@
 							completionTime: elapsedSeconds,
 							hintsUsed,
 							mistakesCount,
+							notesUsed,
 						}),
 					});
 					const solveJson = await solveRes.json();
@@ -604,6 +615,7 @@
 					completionTime: elapsedSeconds,
 					hintsUsed,
 					mistakesCount,
+					notesUsed,
 				}),
 			});
 			const json = await res.json();

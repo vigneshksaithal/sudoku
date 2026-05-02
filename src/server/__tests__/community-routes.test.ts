@@ -418,7 +418,7 @@ testSolveCount('POST /api/solve increments solveCount for community puzzles on f
     const res = await app.request('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ difficulty: 'simple', completionTime: 100, hintsUsed: 0, mistakesCount: 0 }),
+        body: JSON.stringify({ difficulty: 'simple', completionTime: 100, hintsUsed: 0, mistakesCount: 0, notesUsed: false }),
     })
 
     expect(res.status).toBe(200)
@@ -436,7 +436,7 @@ testSolveCount('POST /api/solve does not increment solveCount on duplicate solve
     })
     vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('solver')
 
-    const body = JSON.stringify({ difficulty: 'simple', completionTime: 100, hintsUsed: 0, mistakesCount: 0 })
+    const body = JSON.stringify({ difficulty: 'simple', completionTime: 100, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
 
     // First solve — should succeed and increment
     const first = await app.request('/api/solve', {
@@ -469,7 +469,7 @@ testSolveCount('POST /api/solve does not increment solveCount for auto-generated
     const res = await app.request('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ difficulty: 'simple', completionTime: 100, hintsUsed: 0, mistakesCount: 0 }),
+        body: JSON.stringify({ difficulty: 'simple', completionTime: 100, hintsUsed: 0, mistakesCount: 0, notesUsed: false }),
     })
 
     expect(res.status).toBe(200)
@@ -512,7 +512,7 @@ testProperty6('Property 6: each user counted at most once per puzzle for solve c
                 })
                 await redis.del('solve:t3_testpost:simple:t2_propuser')
 
-                const body = JSON.stringify({ difficulty: 'simple', completionTime, hintsUsed: 0, mistakesCount: 0 })
+                const body = JSON.stringify({ difficulty: 'simple', completionTime, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
 
                 // First solve — should succeed and set solveCount to 1
                 const first = await app.request('/api/solve', {
