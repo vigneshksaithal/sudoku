@@ -36,7 +36,7 @@
     "tasks": {
       "daily-post": {
         "endpoint": "/internal/scheduler/daily-post",
-        "cron": "30 8 * * *"
+        "cron": "0 12 * * *"
       }
     }
   },
