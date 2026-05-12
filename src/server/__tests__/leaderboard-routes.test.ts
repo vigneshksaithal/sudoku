@@ -331,3 +331,129 @@ testGlobal('GET /api/leaderboard/global includes user entry when outside top 10'
     expect(json.data.userEntry.username).toBe('bob')
     expect(json.data.userEntry.rank).toBe(11)
 })
+
+// ─── POST /api/solve — unranked field (task 7.1) ──────────────────────────────
+
+const testUnranked = createDevvitTest({ userId: 't2_unrankeduser', username: 'unrankeduser' })
+
+testUnranked('POST /api/solve with unranked: true persists solve hash with unranked: "true" and produces no sorted-set membership', async () => {
+    await seedPuzzle('easy')
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('unrankeduser')
+
+    const res = await postSolve(solveBody({ unranked: true }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.status).toBe('success')
+    expect(json.data.postRank).toBeNull()
+    expect(json.data.globalRank).toBeNull()
+
+    const storedUnranked = await redis.hGet(`solve:${POST_ID}:easy:t2_unrankeduser`, 'unranked')
+    expect(storedUnranked).toBe('true')
+
+    // Must NOT be a member of either sorted set
+    const postScore = await redis.zScore(`leaderboard:${POST_ID}:easy`, 't2_unrankeduser')
+    expect(postScore).toBeUndefined()
+
+    const globalScore = await redis.zScore('leaderboard:global:easy', 't2_unrankeduser')
+    expect(globalScore).toBeUndefined()
+})
+
+testUnranked('POST /api/solve with unranked: false persists solve hash with unranked: "false" and both sorted sets contain userId', async () => {
+    await seedPuzzle('easy')
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('unrankeduser')
+
+    const res = await postSolve(solveBody({ unranked: false }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.status).toBe('success')
+    expect(json.data.postRank).not.toBeNull()
+    expect(json.data.globalRank).not.toBeNull()
+
+    const storedUnranked = await redis.hGet(`solve:${POST_ID}:easy:t2_unrankeduser`, 'unranked')
+    expect(storedUnranked).toBe('false')
+
+    const postScore = await redis.zScore(`leaderboard:${POST_ID}:easy`, 't2_unrankeduser')
+    expect(postScore).toBeDefined()
+
+    const globalScore = await redis.zScore('leaderboard:global:easy', 't2_unrankeduser')
+    expect(globalScore).toBeDefined()
+})
+
+testUnranked('POST /api/solve with unranked: "true" (string) returns 400 with validator error in body', async () => {
+    const res = await postSolve(solveBody({ unranked: 'true' }))
+    const json = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(json.status).toBe('error')
+    expect(json.message).toContain('unranked')
+})
+
+testUnranked('POST /api/solve with unranked omitted treats it as false (backwards compatibility)', async () => {
+    await seedPuzzle('easy')
+    vi.spyOn(reddit, 'getCurrentUsername').mockResolvedValue('unrankeduser')
+
+    // solveBody() does not include unranked — omitted key
+    const res = await postSolve(solveBody())
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.status).toBe('success')
+    expect(json.data.postRank).not.toBeNull()
+    expect(json.data.globalRank).not.toBeNull()
+
+    const storedUnranked = await redis.hGet(`solve:${POST_ID}:easy:t2_unrankeduser`, 'unranked')
+    expect(storedUnranked).toBe('false')
+})
+
+// ─── GET /api/leaderboard/post — unranked entries (task 7.1) ─────────────────
+// Use a distinct subredditId to get a unique in-memory cache namespace,
+// avoiding collisions with other tests that use the same difficulty keys.
+
+const testUnrankedLb = createDevvitTest({ userId: 't2_unrankedlb', username: 'unrankedlb', subredditId: 't5_unrankedsub' as `t5_${string}` })
+
+testUnrankedLb('GET /api/leaderboard/post response entries include unranked: boolean and rank: number | null', async () => {
+    const difficulty = 'simple'
+    await redis.hSet(`solve:${POST_ID}:${difficulty}:t2_unrankedlb`, {
+        username: 'unrankedlb',
+        completionTime: '80',
+        hintsUsed: '0',
+        mistakesCount: '0',
+        adjustedTime: '80',
+        unranked: 'false',
+    })
+    await redis.zAdd(`leaderboard:${POST_ID}:${difficulty}`, { member: 't2_unrankedlb', score: 80 })
+
+    const res = await app.request(`/api/leaderboard/post?difficulty=${difficulty}`)
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.data.entries).toHaveLength(1)
+    expect(typeof json.data.entries[0].unranked).toBe('boolean')
+    expect(json.data.entries[0].unranked).toBe(false)
+    expect(typeof json.data.entries[0].rank).toBe('number')
+    expect(json.data.entries[0].rank).toBe(1)
+})
+
+testUnrankedLb('GET /api/leaderboard/post returns userEntry.rank === null and userEntry.unranked === true when requesting user has only an unranked solve', async () => {
+    const difficulty = 'intermediate'
+    // Seed the user's solve hash as unranked (no sorted-set entry)
+    await redis.hSet(`solve:${POST_ID}:${difficulty}:t2_unrankedlb`, {
+        username: 'unrankedlb',
+        completionTime: '200',
+        hintsUsed: '0',
+        mistakesCount: '0',
+        adjustedTime: '200',
+        unranked: 'true',
+    })
+    // Deliberately do NOT add to the sorted set
+
+    const res = await app.request(`/api/leaderboard/post?difficulty=${difficulty}`)
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.data.userEntry).not.toBeNull()
+    expect(json.data.userEntry.rank).toBeNull()
+    expect(json.data.userEntry.unranked).toBe(true)
+})

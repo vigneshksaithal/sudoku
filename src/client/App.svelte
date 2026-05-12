@@ -38,8 +38,14 @@
 		VALID_DIFFICULTIES,
 		getNextDifficulty,
 	} from "./lib/constants";
+	import {
+		initialPauseState,
+		reduce,
+		type PauseEvent,
+	} from "./lib/pause-reducer";
 	import HintPanel from "./components/HintPanel.svelte";
 	import Leaderboard from "./components/Leaderboard.svelte";
+	import PauseOverlay from "./components/PauseOverlay.svelte";
 	import SubmitPuzzle from "./components/SubmitPuzzle.svelte";
 	import { findTechniqueHint } from "./lib/technique-hints/technique-engine";
 	import { buildCandidateBoard } from "./lib/technique-hints/candidate-board";
@@ -134,6 +140,17 @@
 	let creatorUsername: string | null = $state(null);
 	let solveCount: number | null = $state(null);
 	let puzzleCreatedAt: number | null = $state(null);
+	let pauseState = $state(initialPauseState);
+	let pauseButtonEl: HTMLButtonElement | null = $state(null);
+
+	const isPaused = $derived(pauseState.isPaused);
+	const unrankedDueToBackground = $derived(
+		pauseState.unrankedDueToBackground,
+	);
+
+	const dispatchPauseEvent = (event: PauseEvent): void => {
+		pauseState = reduce(pauseState, event);
+	};
 
 	const resetRoundState = (): void => {
 		selection = EMPTY_SELECTION;
@@ -158,6 +175,7 @@
 		creatorUsername = null;
 		solveCount = null;
 		puzzleCreatedAt = null;
+		dispatchPauseEvent("RESET_ROUND");
 		startTimer();
 	};
 
@@ -207,7 +225,55 @@
 
 	onMount(() => {
 		fetchPuzzles();
+		document.addEventListener("visibilitychange", onVisibilityChange);
+		window.addEventListener("pagehide", onPageHide);
+		return () => {
+			document.removeEventListener(
+				"visibilitychange",
+				onVisibilityChange,
+			);
+			window.removeEventListener("pagehide", onPageHide);
+		};
 	});
+
+	const handlePause = (): void => {
+		if (screen !== "playing" || isPaused) return;
+		dispatchPauseEvent("PAUSE_PRESSED");
+		if (timerInterval !== null) {
+			clearInterval(timerInterval);
+			timerInterval = null;
+		}
+	};
+
+	const handleResume = (): void => {
+		if (!isPaused) return;
+		dispatchPauseEvent("RESUME");
+		tickTimer();
+		pauseButtonEl?.focus();
+	};
+
+	const onVisibilityChange = (): void => {
+		if (screen !== "playing") return;
+		if (document.hidden) {
+			dispatchPauseEvent("VISIBILITY_HIDDEN");
+			if (timerInterval !== null) {
+				clearInterval(timerInterval);
+				timerInterval = null;
+			}
+			return;
+		}
+		dispatchPauseEvent("VISIBILITY_SHOWN");
+		if (!isPaused && timerInterval === null) tickTimer();
+	};
+
+	const onPageHide = (): void => {
+		if (screen !== "playing") return;
+		dispatchPauseEvent("PAGEHIDE");
+		if (timerInterval !== null) {
+			clearInterval(timerInterval);
+			timerInterval = null;
+		}
+	};
 
 	const handleUndo = (): void => {
 		if (undoDisabled) return;
@@ -317,6 +383,7 @@
 			handleUndo();
 			return;
 		}
+		if (isPaused && e.key !== "Escape") return;
 		if (screen !== "playing") return;
 
 		const key = e.key;
@@ -545,6 +612,7 @@
 							hintsUsed,
 							mistakesCount,
 							notesUsed,
+							unranked: unrankedDueToBackground,
 						}),
 					});
 					const solveJson = await solveRes.json();
@@ -616,6 +684,7 @@
 					hintsUsed,
 					mistakesCount,
 					notesUsed,
+					unranked: unrankedDueToBackground,
 				}),
 			});
 			const json = await res.json();
@@ -648,10 +717,17 @@
 	let elapsedSeconds = $state(0);
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 
-	const startTimer = () => {
-		elapsedSeconds = 0;
-		if (timerInterval) clearInterval(timerInterval);
+	// Starts the interval without zeroing elapsedSeconds — used by resume and
+	// visibility-shown so the timer continues from its preserved value.
+	const tickTimer = (): void => {
+		if (timerInterval !== null) clearInterval(timerInterval);
 		timerInterval = setInterval(() => elapsedSeconds++, 1000);
+	};
+
+	// Resets elapsedSeconds to 0 then starts the interval — used by resetRoundState.
+	const startTimer = (): void => {
+		elapsedSeconds = 0;
+		tickTimer();
 	};
 
 	const formatTime = (s: number) => {
@@ -739,9 +815,22 @@
 				>
 					{puzzleTitle}
 				</p>
-				<p class="font-mono text-xs tabular-nums text-neutral-400">
-					{formatTime(elapsedSeconds)}
-				</p>
+				<div class="flex items-center gap-2">
+					<p class="font-mono text-xs tabular-nums text-neutral-400">
+						{formatTime(elapsedSeconds)}
+					</p>
+					<button
+						class="flex items-center justify-center rounded-md min-h-11 min-w-11 bg-neutral-100 text-neutral-700 transition-all active:scale-95 hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
+						aria-label="Pause solve"
+						bind:this={pauseButtonEl}
+						onclick={handlePause}
+						disabled={loading || error !== null || isPaused}
+					>
+						<span class="text-lg leading-none" aria-hidden="true"
+							>⏸</span
+						>
+					</button>
+				</div>
 			</div>
 
 			<div
@@ -749,7 +838,7 @@
 			>
 				<!-- Grid area: no flex-1 on mobile, grid is naturally sized -->
 				<div
-					class="flex shrink-0 flex-col items-center sm:w-3/5 sm:flex-initial sm:flex-1"
+					class="relative flex shrink-0 flex-col items-center sm:w-3/5 sm:flex-initial sm:flex-1"
 				>
 					<div
 						class="w-full"
@@ -769,6 +858,9 @@
 							onShiftCellSelect={handleShiftCellSelect}
 						/>
 					</div>
+					{#if isPaused}
+						<PauseOverlay onResume={handleResume} />
+					{/if}
 					{#if activeHint !== null}
 						<div class="hidden w-full sm:block">
 							<HintPanel
@@ -844,6 +936,7 @@
 								(showLeaderboard = !showLeaderboard)}
 							showLeaderboard={false}
 							onSubmitPuzzle={() => (screen = "submit")}
+							{isPaused}
 						/>
 					{/if}
 					{#if validating}

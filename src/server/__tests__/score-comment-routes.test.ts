@@ -248,3 +248,66 @@ testApiFailure('POST /api/score/comment returns 500 with fallback message for no
     expect(json.status).toBe('error')
     expect(json.message).toBe('Failed to post score comment')
 })
+
+// ─── POST /api/score/comment — unranked forwarding (task 7.1) ─────────────────
+
+const testUnrankedComment = createDevvitTest({ userId: 't2_solver', username: 'solver' })
+
+testUnrankedComment('POST /api/score/comment with unranked: true includes "🏁 Unranked" row in posted comment', async () => {
+    await redis.hSet(`puzzle:${POST_ID}`, { stickyCommentId: STICKY_COMMENT_ID })
+    const submitComment = vi.spyOn(reddit, 'submitComment').mockResolvedValue(undefined as never)
+
+    const res = await postScore(JSON.stringify({
+        difficulty: 'easy',
+        completionTime: 120,
+        hintsUsed: 0,
+        mistakesCount: 0,
+        notesUsed: false,
+        unranked: true,
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.status).toBe('success')
+
+    const callArgs = submitComment.mock.calls[0]?.[0]
+    expect(callArgs?.text).toContain('🏁 Unranked')
+})
+
+testUnrankedComment('POST /api/score/comment with unranked: false does NOT include "🏁 Unranked" row in posted comment', async () => {
+    await redis.hSet(`puzzle:${POST_ID}`, { stickyCommentId: STICKY_COMMENT_ID })
+    const submitComment = vi.spyOn(reddit, 'submitComment').mockResolvedValue(undefined as never)
+
+    const res = await postScore(JSON.stringify({
+        difficulty: 'easy',
+        completionTime: 120,
+        hintsUsed: 0,
+        mistakesCount: 0,
+        notesUsed: false,
+        unranked: false,
+    }))
+
+    expect(res.status).toBe(200)
+
+    const callArgs = submitComment.mock.calls[0]?.[0]
+    expect(callArgs?.text).not.toContain('🏁 Unranked')
+})
+
+testUnrankedComment('POST /api/score/comment with unranked: true still posts the comment when other fields are valid', async () => {
+    await redis.hSet(`puzzle:${POST_ID}`, { stickyCommentId: STICKY_COMMENT_ID })
+    const submitComment = vi.spyOn(reddit, 'submitComment').mockResolvedValue(undefined as never)
+
+    const res = await postScore(JSON.stringify({
+        difficulty: 'easy',
+        completionTime: 154,
+        hintsUsed: 1,
+        mistakesCount: 0,
+        notesUsed: true,
+        unranked: true,
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.status).toBe('success')
+    expect(submitComment).toHaveBeenCalledOnce()
+})

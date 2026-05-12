@@ -6,13 +6,14 @@ import { DIFFICULTIES } from './sudoku'
 export type ValidDifficulty = (typeof DIFFICULTIES)[number]
 
 export type LeaderboardEntry = {
-    rank: number
+    rank: number | null
     username: string
     completionTime: number
     hintsUsed: number
     mistakesCount: number
     adjustedTime: number
     notesUsed: boolean | undefined
+    unranked: boolean
 }
 
 export type LeaderboardResponse = {
@@ -21,8 +22,8 @@ export type LeaderboardResponse = {
 }
 
 export type SolveResponse = {
-    postRank: number
-    globalRank: number
+    postRank: number | null
+    globalRank: number | null
     adjustedTime: number
 }
 
@@ -39,11 +40,11 @@ const isNonNegativeInteger = (value: unknown): value is number =>
 /** Validate and parse a solve submission body. Returns parsed fields or an error string. */
 export const validateSolveInput = (
     body: unknown
-): { difficulty: ValidDifficulty; completionTime: number; hintsUsed: number; mistakesCount: number; notesUsed: boolean } | string => {
+): { difficulty: ValidDifficulty; completionTime: number; hintsUsed: number; mistakesCount: number; notesUsed: boolean; unranked: boolean } | string => {
     if (!body || typeof body !== 'object') return 'Invalid request body'
 
     const obj = body as Record<string, unknown>
-    const { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed } = obj
+    const { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked } = obj
 
     if (!isValidDifficulty(difficulty)) return 'Invalid difficulty'
     if (!isNonNegativeInteger(completionTime)) return 'Invalid completionTime: must be a non-negative integer'
@@ -51,7 +52,16 @@ export const validateSolveInput = (
     if (!isNonNegativeInteger(mistakesCount)) return 'Invalid mistakesCount: must be a non-negative integer'
     if (typeof notesUsed !== 'boolean') return 'Invalid notesUsed: must be a boolean'
 
-    return { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed }
+    let resolvedUnranked: boolean
+    if (unranked === undefined) {
+        resolvedUnranked = false
+    } else if (typeof unranked === 'boolean') {
+        resolvedUnranked = unranked
+    } else {
+        return 'Invalid unranked: must be a boolean'
+    }
+
+    return { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked: resolvedUnranked }
 }
 
 // ─── Pure Functions ───────────────────────────────────────────────────────────
@@ -62,17 +72,20 @@ export const computeAdjustedTime = (completionTime: number, hintsUsed: number): 
 
 // ─── Redis Operations ─────────────────────────────────────────────────────────
 
+const parseUnranked = (raw: string | undefined): boolean => raw === 'true'
+
 const parseSolveRecord = (
     data: Record<string, string>,
-    rank: number
+    rank: number | null
 ): LeaderboardEntry | null => {
-    const { username, completionTime, hintsUsed, mistakesCount, adjustedTime, notesUsed: notesUsedRaw } = data
+    const { username, completionTime, hintsUsed, mistakesCount, adjustedTime, notesUsed: notesUsedRaw, unranked: unrankedRaw } = data
     if (!username || completionTime === undefined || hintsUsed === undefined || mistakesCount === undefined || adjustedTime === undefined) {
         return null
     }
     const notesUsed = notesUsedRaw === 'true' ? true
         : notesUsedRaw === 'false' ? false
             : undefined
+    const unranked = parseUnranked(unrankedRaw)
     return {
         rank,
         username,
@@ -81,6 +94,7 @@ const parseSolveRecord = (
         mistakesCount: parseInt(mistakesCount, 10),
         adjustedTime: parseInt(adjustedTime, 10),
         notesUsed,
+        unranked,
     }
 }
 
@@ -95,8 +109,9 @@ export const recordSolve = async (params: {
     hintsUsed: number
     mistakesCount: number
     notesUsed: boolean
-}): Promise<{ postRank: number; globalRank: number; adjustedTime: number } | string> => {
-    const { redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed } = params
+    unranked?: boolean
+}): Promise<{ postRank: number | null; globalRank: number | null; adjustedTime: number } | string> => {
+    const { redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked = false } = params
 
     const solveKey = `solve:${postId}:${difficulty}:${userId}`
     const isDuplicate = await redis.exists(solveKey)
@@ -111,7 +126,22 @@ export const recordSolve = async (params: {
         mistakesCount: String(mistakesCount),
         adjustedTime: String(adjustedTime),
         notesUsed: String(notesUsed),
+        unranked: String(unranked),
     })
+
+    if (unranked) {
+        const globalSolveKey = `solve:global:${difficulty}:${userId}`
+        await redis.hSet(globalSolveKey, {
+            username,
+            completionTime: String(completionTime),
+            hintsUsed: String(hintsUsed),
+            mistakesCount: String(mistakesCount),
+            adjustedTime: String(adjustedTime),
+            notesUsed: String(notesUsed),
+            unranked: String(unranked),
+        })
+        return { postRank: null, globalRank: null, adjustedTime }
+    }
 
     const postLeaderboardKey = `leaderboard:${postId}:${difficulty}`
     await redis.zAdd(postLeaderboardKey, { member: userId, score: adjustedTime })
@@ -130,6 +160,7 @@ export const recordSolve = async (params: {
             mistakesCount: String(mistakesCount),
             adjustedTime: String(adjustedTime),
             notesUsed: String(notesUsed),
+            unranked: String(unranked),
         })
     }
 
@@ -170,7 +201,16 @@ export const getLeaderboard = async (params: {
     if (isInTopN) return { entries, userEntry: null }
 
     const userRankRaw = await redis.zRank(key, userId)
-    if (userRankRaw === undefined) return { entries, userEntry: null }
+    if (userRankRaw === undefined) {
+        // Fallback: check if user has an unranked solve hash
+        const userSolveKey = `${solveKeyPrefix}:${userId}`
+        const userData = await redis.hGetAll(userSolveKey)
+        const unrankedEntry = parseSolveRecord(userData, null)
+        if (unrankedEntry && unrankedEntry.unranked) {
+            return { entries, userEntry: unrankedEntry }
+        }
+        return { entries, userEntry: null }
+    }
 
     const userSolveKey = `${solveKeyPrefix}:${userId}`
     const userData = await redis.hGetAll(userSolveKey)

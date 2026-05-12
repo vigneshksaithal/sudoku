@@ -128,24 +128,24 @@
 - [x] 12.4 Implement `handleDismissHint` — clear activeHint without modifying board or decrementing hintsUsed
   - Requirements: R16.1, R16.2, R16.3, R16.4
   - Files: `src/client/App.svelte`
-- [~] 12.5 Add stale hint protection — validate primary cell is still empty before applying placement hint
+- [ ] 12.5 Add stale hint protection — validate primary cell is still empty before applying placement hint
   - Requirements: R18.1, R18.2
   - Files: `src/client/App.svelte`
-- [~] 12.6 Wire HintPanel and updated Grid into App.svelte template — pass activeHint, techniqueHighlight, onApply, onDismiss props
+- [ ] 12.6 Wire HintPanel and updated Grid into App.svelte template — pass activeHint, techniqueHighlight, onApply, onDismiss props
   - Requirements: R11.1, R11.6, R12.1, R12.5
   - Files: `src/client/App.svelte`
 
 ## Task 13: Remove old hint-logic.ts and update imports
 
-- [~] 13.1 Remove or repurpose `src/client/lib/hint-logic.ts` — remove `getBestHintCell`, `countValidCandidates`, `isHintApplicable` since they are replaced by the technique engine
+- [ ] 13.1 Remove or repurpose `src/client/lib/hint-logic.ts` — remove `getBestHintCell`, `countValidCandidates`, `isHintApplicable` since they are replaced by the technique engine
   - Requirements: R8
   - Files: `src/client/lib/hint-logic.ts`, `src/client/App.svelte`
-- [~] 13.2 Update or remove old hint-logic tests in `src/client/lib/__tests__/hint-logic.test.ts` and `src/client/lib/__tests__/hint-logic.property.test.ts`
+- [ ] 13.2 Update or remove old hint-logic tests in `src/client/lib/__tests__/hint-logic.test.ts` and `src/client/lib/__tests__/hint-logic.property.test.ts`
   - Files: `src/client/lib/__tests__/hint-logic.test.ts`, `src/client/lib/__tests__/hint-logic.property.test.ts`
 
 ## Task 14: Integration testing and final verification
 
-- [~] 14.1 Run `bun run test` and verify all tests pass (old and new)
+- [ ] 14.1 Run `bun run test` and verify all tests pass (old and new)
   - Requirements: All
-- [~] 14.2 Run `bun run type-check` and verify zero type errors
+- [ ] 14.2 Run `bun run type-check` and verify zero type errors
   - Requirements: All

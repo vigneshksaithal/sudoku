@@ -284,7 +284,7 @@ app.post('/api/solve', async (c) => {
     return c.json({ status: 'error', message: parsed }, HTTP_STATUS_BAD_REQUEST)
   }
 
-  const { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed } = parsed
+  const { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked } = parsed
 
   const solution = await redis.hGet(`puzzle:${postId}`, `${difficulty}:solution`)
   if (!solution) {
@@ -296,7 +296,7 @@ app.post('/api/solve', async (c) => {
     return c.json({ status: 'error', message: 'Failed to get username' }, HTTP_STATUS_BAD_REQUEST)
   }
 
-  const result = await recordSolve({ redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed })
+  const result = await recordSolve({ redis, postId, userId, username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked })
   if (typeof result === 'string') {
     return c.json({ status: 'error', message: result }, HTTP_STATUS_BAD_REQUEST)
   }

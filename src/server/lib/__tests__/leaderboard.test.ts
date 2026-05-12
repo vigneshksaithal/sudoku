@@ -51,6 +51,7 @@ describe('validateSolveInput', () => {
             hintsUsed: 2,
             mistakesCount: 3,
             notesUsed: true,
+            unranked: false,
         })
     })
 
@@ -151,6 +152,65 @@ describe('validateSolveInput', () => {
     it('returns error string for missing notesUsed', () => {
         const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0 })
         expect(typeof result).toBe('string')
+    })
+
+    // unranked validation — Requirements 9.1, 9.2, 9.3, 9.4
+    it('accepts payload with unranked: true and returns unranked: true in the result', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: true })
+        expect(typeof result).toBe('object')
+        if (typeof result === 'object') {
+            expect(result.unranked).toBe(true)
+        }
+    })
+
+    it('accepts payload with unranked: false and returns unranked: false in the result', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: false })
+        expect(typeof result).toBe('object')
+        if (typeof result === 'object') {
+            expect(result.unranked).toBe(false)
+        }
+    })
+
+    it('accepts payload with unranked key omitted and returns unranked: false (default)', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false })
+        expect(typeof result).toBe('object')
+        if (typeof result === 'object') {
+            expect(result.unranked).toBe(false)
+        }
+    })
+
+    it('returns error string for unranked: "true" (string)', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: 'true' })
+        expect(typeof result).toBe('string')
+    })
+
+    it('returns error string for unranked: 1 (number)', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: 1 })
+        expect(typeof result).toBe('string')
+    })
+
+    it('returns error string for unranked: null', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: null })
+        expect(typeof result).toBe('string')
+    })
+
+    it('returns error string for unranked: {} (object)', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: {} })
+        expect(typeof result).toBe('string')
+    })
+
+    it('returns error string for unranked: [] (array)', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: [] })
+        expect(typeof result).toBe('string')
+    })
+
+    it('error message for invalid unranked identifies field "unranked" and mentions boolean', () => {
+        const result = validateSolveInput({ difficulty: 'easy', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: 'true' })
+        expect(typeof result).toBe('string')
+        if (typeof result === 'string') {
+            expect(result.toLowerCase()).toContain('unranked')
+            expect(result.toLowerCase()).toContain('boolean')
+        }
     })
 })
 
@@ -306,6 +366,190 @@ describe('recordSolve', () => {
         })
         const data = await redis.hGetAll('solve:global:intermediate:t2_notes4')
         expect(data['notesUsed']).toBe('false')
+    })
+
+    // unranked persistence — Requirements 8.1, 10.1, 10.2, 10.3, 10.6
+    test('unranked: true — post-level hash is written with unranked: "true"', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_unranked1',
+            userId: 't2_unranked1',
+            username: 'ivan',
+            difficulty: 'easy',
+            completionTime: 100,
+            hintsUsed: 1,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: true,
+        })
+        const data = await redis.hGetAll('solve:t3_unranked1:easy:t2_unranked1')
+        expect(data['unranked']).toBe('true')
+    })
+
+    test('unranked: true — global-level hash is written with unranked: "true"', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_unranked2',
+            userId: 't2_unranked2',
+            username: 'julia',
+            difficulty: 'easy',
+            completionTime: 100,
+            hintsUsed: 1,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: true,
+        })
+        const data = await redis.hGetAll('solve:global:easy:t2_unranked2')
+        expect(data['unranked']).toBe('true')
+    })
+
+    test('unranked: true — userId is NOT a member of leaderboard:{postId}:{difficulty} sorted set', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_unranked3',
+            userId: 't2_unranked3',
+            username: 'karl',
+            difficulty: 'simple',
+            completionTime: 80,
+            hintsUsed: 0,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: true,
+        })
+        const score = await redis.zScore('leaderboard:t3_unranked3:simple', 't2_unranked3')
+        expect(score).toBeUndefined()
+    })
+
+    test('unranked: true — userId is NOT a member of leaderboard:global:{difficulty} sorted set', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_unranked4',
+            userId: 't2_unranked4',
+            username: 'laura',
+            difficulty: 'simple',
+            completionTime: 80,
+            hintsUsed: 0,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: true,
+        })
+        const score = await redis.zScore('leaderboard:global:simple', 't2_unranked4')
+        expect(score).toBeUndefined()
+    })
+
+    test('unranked: true — return value is { postRank: null, globalRank: null, adjustedTime }', async () => {
+        const result = await recordSolve({
+            redis,
+            postId: 't3_unranked5',
+            userId: 't2_unranked5',
+            username: 'mike',
+            difficulty: 'expert',
+            completionTime: 200,
+            hintsUsed: 2,
+            mistakesCount: 1,
+            notesUsed: true,
+            unranked: true,
+        })
+        expect(typeof result).toBe('object')
+        if (typeof result === 'object') {
+            expect(result.postRank).toBeNull()
+            expect(result.globalRank).toBeNull()
+            expect(result.adjustedTime).toBe(260) // 200 + 2*30
+        }
+    })
+
+    test('unranked: false — post-level hash is written with unranked: "false"', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_ranked1',
+            userId: 't2_ranked1',
+            username: 'nina',
+            difficulty: 'easy',
+            completionTime: 120,
+            hintsUsed: 1,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: false,
+        })
+        const data = await redis.hGetAll('solve:t3_ranked1:easy:t2_ranked1')
+        expect(data['unranked']).toBe('false')
+    })
+
+    test('unranked: false — global-level hash is written with unranked: "false"', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_ranked2',
+            userId: 't2_ranked2',
+            username: 'oscar',
+            difficulty: 'easy',
+            completionTime: 120,
+            hintsUsed: 1,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: false,
+        })
+        const data = await redis.hGetAll('solve:global:easy:t2_ranked2')
+        expect(data['unranked']).toBe('false')
+    })
+
+    test('unranked: false — userId IS a member of leaderboard:{postId}:{difficulty} with adjustedTime score', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_ranked3',
+            userId: 't2_ranked3',
+            username: 'petra',
+            difficulty: 'intermediate',
+            completionTime: 150,
+            hintsUsed: 2,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: false,
+        })
+        // adjustedTime = 150 + 2*30 = 210
+        const score = await redis.zScore('leaderboard:t3_ranked3:intermediate', 't2_ranked3')
+        expect(score).toBe(210)
+    })
+
+    test('unranked: false — userId IS a member of leaderboard:global:{difficulty} with adjustedTime score', async () => {
+        await recordSolve({
+            redis,
+            postId: 't3_ranked4',
+            userId: 't2_ranked4',
+            username: 'quinn',
+            difficulty: 'intermediate',
+            completionTime: 150,
+            hintsUsed: 2,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: false,
+        })
+        // adjustedTime = 150 + 2*30 = 210
+        const score = await redis.zScore('leaderboard:global:intermediate', 't2_ranked4')
+        expect(score).toBe(210)
+    })
+
+    test('unranked: false — returned postRank and globalRank are non-null numbers derived from zRank + 1', async () => {
+        const result = await recordSolve({
+            redis,
+            postId: 't3_ranked5',
+            userId: 't2_ranked5',
+            username: 'rachel',
+            difficulty: 'expert',
+            completionTime: 300,
+            hintsUsed: 0,
+            mistakesCount: 0,
+            notesUsed: false,
+            unranked: false,
+        })
+        expect(typeof result).toBe('object')
+        if (typeof result === 'object') {
+            expect(result.postRank).not.toBeNull()
+            expect(result.globalRank).not.toBeNull()
+            expect(typeof result.postRank).toBe('number')
+            expect(typeof result.globalRank).toBe('number')
+            expect(result.postRank).toBeGreaterThanOrEqual(1)
+            expect(result.globalRank).toBeGreaterThanOrEqual(1)
+        }
     })
 })
 
@@ -515,5 +759,268 @@ describe('getLeaderboard', () => {
         })
         expect(result.entries).toHaveLength(1)
         expect(result.entries[0]!.notesUsed).toBeUndefined()
+    })
+
+    // parseSolveRecord unranked parsing — Requirements 11.1, 11.2, 11.3, 12.1, 12.2, 12.3
+    // Tested indirectly via getLeaderboard by seeding Redis directly with hSet
+
+    test('parseSolveRecord parses unranked: "true" to unranked: true', async () => {
+        const postId = 't3_unranked_parse1'
+        const difficulty = 'easy'
+        const userId = 't2_unranked_parse1'
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'alice',
+            completionTime: '100',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '100',
+            notesUsed: 'false',
+            unranked: 'true',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 100 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        // LeaderboardEntry must have unranked field — fails until parseSolveRecord is widened
+        expect((result.entries[0]! as { unranked: boolean }).unranked).toBe(true)
+        // rank must accept number | null
+        const rank: number | null = result.entries[0]!.rank
+        expect(rank).toBe(1)
+    })
+
+    test('parseSolveRecord parses unranked: "false" to unranked: false', async () => {
+        const postId = 't3_unranked_parse2'
+        const difficulty = 'easy'
+        const userId = 't2_unranked_parse2'
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'bob',
+            completionTime: '200',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '200',
+            notesUsed: 'false',
+            unranked: 'false',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 200 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect((result.entries[0]! as { unranked: boolean }).unranked).toBe(false)
+    })
+
+    test('parseSolveRecord treats missing unranked key as unranked: false (legacy record)', async () => {
+        const postId = 't3_unranked_parse3'
+        const difficulty = 'easy'
+        const userId = 't2_unranked_parse3'
+        // Legacy record — no unranked field
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'carol',
+            completionTime: '300',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '300',
+            notesUsed: 'false',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 300 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect((result.entries[0]! as { unranked: boolean }).unranked).toBe(false)
+    })
+
+    test('parseSolveRecord treats unranked: "" (empty string) as unranked: false', async () => {
+        const postId = 't3_unranked_parse4'
+        const difficulty = 'easy'
+        const userId = 't2_unranked_parse4'
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'dave',
+            completionTime: '400',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '400',
+            notesUsed: 'false',
+            unranked: '',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 400 })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect((result.entries[0]! as { unranked: boolean }).unranked).toBe(false)
+    })
+
+    test('parseSolveRecord treats unranked: "maybe" (unexpected string) as unranked: false without throwing', async () => {
+        const postId = 't3_unranked_parse5'
+        const difficulty = 'easy'
+        const userId = 't2_unranked_parse5'
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'eve',
+            completionTime: '500',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '500',
+            notesUsed: 'false',
+            unranked: 'maybe',
+        })
+        await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: 500 })
+
+        // Must not throw
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(1)
+        expect((result.entries[0]! as { unranked: boolean }).unranked).toBe(false)
+    })
+
+    // getLeaderboard unranked-user fallback — Requirements 11.4, 11.5, 12.5
+
+    test('returns userEntry with rank: null and unranked: true when userId has no sorted-set membership but solve hash exists with unranked: "true"', async () => {
+        const postId = 't3_lb_unranked1'
+        const difficulty = 'easy'
+        const userId = 't2_lb_unranked1'
+        // Seed hash only — no zAdd, simulating an unranked user
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'frank',
+            completionTime: '120',
+            hintsUsed: '1',
+            mistakesCount: '0',
+            adjustedTime: '150',
+            notesUsed: 'false',
+            unranked: 'true',
+        })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+            userId,
+        })
+        expect(result.entries).toHaveLength(0)
+        expect(result.userEntry).not.toBeNull()
+        expect(result.userEntry!.rank).toBeNull()
+        expect(result.userEntry!.unranked).toBe(true)
+        expect(result.userEntry!.username).toBe('frank')
+    })
+
+    test('returns userEntry: null when userId has no sorted-set membership and no solve hash exists', async () => {
+        const postId = 't3_lb_unranked2'
+        const difficulty = 'easy'
+        const userId = 't2_lb_unranked2'
+        // No hash, no sorted-set entry
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+            userId,
+        })
+        expect(result.entries).toHaveLength(0)
+        expect(result.userEntry).toBeNull()
+    })
+
+    test('returns userEntry: null when userId has no sorted-set membership but solve hash exists with unranked: "false" (inconsistent state)', async () => {
+        const postId = 't3_lb_unranked3'
+        const difficulty = 'easy'
+        const userId = 't2_lb_unranked3'
+        // Hash exists with unranked: "false" but no sorted-set entry — inconsistent state
+        await redis.hSet(`solve:${postId}:${difficulty}:${userId}`, {
+            username: 'grace',
+            completionTime: '200',
+            hintsUsed: '0',
+            mistakesCount: '0',
+            adjustedTime: '200',
+            notesUsed: 'false',
+            unranked: 'false',
+        })
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+            userId,
+        })
+        expect(result.entries).toHaveLength(0)
+        // Must not fabricate a rank — return null rather than a fake ranked entry
+        expect(result.userEntry).toBeNull()
+    })
+
+    test('top-N entries never carry unranked: true (sorted set only holds ranked members)', async () => {
+        const postId = 't3_lb_unranked4'
+        const difficulty = 'easy'
+        // Seed 3 ranked users via recordSolve (unranked: false)
+        for (let i = 1; i <= 3; i++) {
+            await recordSolve({
+                redis,
+                postId,
+                userId: `t2_ranked_top${i}`,
+                username: `rankeduser${i}`,
+                difficulty,
+                completionTime: i * 50,
+                hintsUsed: 0,
+                mistakesCount: 0,
+                notesUsed: false,
+                unranked: false,
+            })
+        }
+
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+        })
+        expect(result.entries).toHaveLength(3)
+        for (const entry of result.entries) {
+            expect(entry.unranked).toBe(false)
+        }
+    })
+
+    test('when userId IS in the sorted set, existing in-top-N fallback path is unchanged and returns user entry with a numeric rank', async () => {
+        const postId = 't3_lb_unranked5'
+        const difficulty = 'easy'
+        // Seed 12 ranked users so user1 is outside top 10
+        for (let i = 1; i <= 12; i++) {
+            await recordSolve({
+                redis,
+                postId,
+                userId: `t2_ranked_u${i}`,
+                username: `rankeduser${i}`,
+                difficulty,
+                completionTime: i * 10,
+                hintsUsed: 0,
+                mistakesCount: 0,
+                notesUsed: false,
+                unranked: false,
+            })
+        }
+
+        // user12 is rank 12 — outside top 10
+        const result = await getLeaderboard({
+            redis,
+            key: `leaderboard:${postId}:${difficulty}`,
+            solveKeyPrefix: `solve:${postId}:${difficulty}`,
+            userId: 't2_ranked_u12',
+        })
+        expect(result.entries).toHaveLength(10)
+        expect(result.userEntry).not.toBeNull()
+        expect(typeof result.userEntry!.rank).toBe('number')
+        expect(result.userEntry!.rank).toBe(12)
+        expect(result.userEntry!.unranked).toBe(false)
     })
 })

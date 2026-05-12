@@ -23,13 +23,14 @@ const difficultyArb = fc.string({ minLength: 1 })
 /** Non-negative integer for time/hints/mistakes */
 const nonNegativeIntArb = fc.nat()
 
-/** A valid ScoreCommentData record (without notesUsed — used by Properties 1 & 2) */
+/** A valid ScoreCommentData record (used by Properties 1 & 2) */
 const scoreCommentDataArb = fc.record({
     difficulty: difficultyArb,
     completionTime: nonNegativeIntArb,
     hintsUsed: nonNegativeIntArb,
     mistakesCount: nonNegativeIntArb,
     notesUsed: fc.boolean(),
+    unranked: fc.boolean(),
 })
 
 /** A valid ScoreCommentData record with explicit boolean notesUsed */
@@ -39,6 +40,7 @@ const scoreCommentDataWithNotesArb = fc.record({
     hintsUsed: nonNegativeIntArb,
     mistakesCount: nonNegativeIntArb,
     notesUsed: fc.boolean(),
+    unranked: fc.boolean(),
 })
 
 // ---------------------------------------------------------------------------
@@ -402,6 +404,65 @@ describe('Property 3: Score endpoint input validation', () => {
                 const result = validateSolveInput(payload)
                 const accepted = typeof result !== 'string'
                 return accepted === valid
+            }),
+            { numRuns: 100 }
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
+// Property 5: formatScoreComment includes 🏁 Unranked row iff data.unranked === true
+// ---------------------------------------------------------------------------
+
+describe('Property 5: formatScoreComment includes 🏁 Unranked row iff data.unranked === true', () => {
+    /**
+     * **Validates: Requirements 8.4, 8.5**
+     *
+     * For any valid ScoreCommentData (arbitrary difficulty string, non-negative
+     * integer completionTime/hintsUsed/mistakesCount, boolean notesUsed, boolean
+     * unranked), the output of formatScoreComment SHALL contain
+     * "| 🏁 Unranked | Yes |" if and only if unranked === true.
+     */
+
+    const scoreCommentDataWithUnrankedArb = fc.record({
+        difficulty: difficultyArb,
+        completionTime: nonNegativeIntArb,
+        hintsUsed: nonNegativeIntArb,
+        mistakesCount: nonNegativeIntArb,
+        notesUsed: fc.boolean(),
+        unranked: fc.boolean(),
+    })
+
+    it('"| 🏁 Unranked | Yes |" is present iff unranked === true', () => {
+        fc.assert(
+            fc.property(scoreCommentDataWithUnrankedArb, (data) => {
+                const result = formatScoreComment(data)
+                const hasUnrankedRow = result.includes('| 🏁 Unranked | Yes |')
+                return hasUnrankedRow === data.unranked
+            }),
+            { numRuns: 100 }
+        )
+    })
+
+    it('"| 🏁 Unranked | Yes |" is present when unranked is true', () => {
+        const unrankedTrueArb = scoreCommentDataWithUnrankedArb.filter((d) => d.unranked === true)
+
+        fc.assert(
+            fc.property(unrankedTrueArb, (data) => {
+                const result = formatScoreComment(data)
+                return result.includes('| 🏁 Unranked | Yes |')
+            }),
+            { numRuns: 100 }
+        )
+    })
+
+    it('"🏁 Unranked" is absent when unranked is false', () => {
+        const unrankedFalseArb = scoreCommentDataWithUnrankedArb.filter((d) => d.unranked === false)
+
+        fc.assert(
+            fc.property(unrankedFalseArb, (data) => {
+                const result = formatScoreComment(data)
+                return !result.includes('🏁 Unranked')
             }),
             { numRuns: 100 }
         )

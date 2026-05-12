@@ -2,12 +2,14 @@
     import type { Difficulty } from "../lib/types";
 
     type LeaderboardEntry = {
-        rank: number;
+        rank: number | null;
         username: string;
         completionTime: number;
         hintsUsed: number;
         mistakesCount: number;
         adjustedTime: number;
+        notesUsed: boolean | undefined;
+        unranked: boolean;
     };
 
     type LeaderboardResponse = {
@@ -261,7 +263,9 @@
                                 <td
                                     class="py-1.5 pr-2 font-mono text-xs text-neutral-500 dark:text-neutral-400"
                                 >
-                                    {data.userEntry.rank}
+                                    {data.userEntry.unranked
+                                        ? "—"
+                                        : data.userEntry.rank}
                                 </td>
                                 <td
                                     class="py-1.5 pr-2 font-medium text-neutral-900 dark:text-neutral-100"
@@ -277,6 +281,12 @@
                                         <span class="truncate max-w-[80px]"
                                             >{data.userEntry.username}</span
                                         >
+                                        {#if data.userEntry.unranked}
+                                            <span
+                                                class="ml-2 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
+                                                >unranked</span
+                                            >
+                                        {/if}
                                     </span>
                                 </td>
                                 <td

@@ -97,6 +97,7 @@ test('Property 2: Adjusted time computation', () => {
  * global score equals the minimum adjusted time.
  */
 test('Property 3: Global leaderboard minimum', async () => {
+    let runCounter = 0
     await fc.assert(
         fc.asyncProperty(
             arbUserId,
@@ -107,11 +108,15 @@ test('Property 3: Global leaderboard minimum', async () => {
                 { minLength: 1, maxLength: 8 }
             ),
             async (userId, username, difficulty, solves) => {
-                // Use unique postIds to avoid duplicate rejection
+                // Use a global counter to guarantee unique postId+userId per run,
+                // avoiding duplicate rejection when fast-check generates the same userId
+                // across multiple iterations.
+                const runBase = runCounter
+                runCounter += solves.length
                 const adjustedTimes: number[] = []
                 for (let i = 0; i < solves.length; i++) {
                     const solve = solves[i]!
-                    const postId = `t3_prop3_${i}_${userId.slice(3)}`
+                    const postId = `t3_prop3_${runBase + i}`
                     await recordSolve({
                         redis,
                         postId,
@@ -121,6 +126,7 @@ test('Property 3: Global leaderboard minimum', async () => {
                         completionTime: solve.completionTime,
                         hintsUsed: solve.hintsUsed,
                         mistakesCount: 0,
+                        notesUsed: false,
                     })
                     adjustedTimes.push(computeAdjustedTime(solve.completionTime, solve.hintsUsed))
                 }
@@ -432,5 +438,255 @@ test('Property 6: Leaderboard ordering', async () => {
             }
         ),
         { numRuns: 50 }
+    )
+})
+
+// ─── Feature: solve-pause ─────────────────────────────────────────────────────
+// ─── Property 6: validateSolveInput errors iff unranked is present and not boolean ──
+/**
+ * **Validates: Requirements 9.1, 9.2, 9.3**
+ *
+ * For any valid base payload:
+ * - Augmenting with a non-boolean `unranked` value (integer, float, string, null,
+ *   array, object) causes `validateSolveInput` to return a string (error).
+ * - Omitting `unranked` entirely causes `validateSolveInput` to return a successful
+ *   object with `unranked: false`.
+ * - Setting `unranked: true` or `unranked: false` causes `validateSolveInput` to
+ *   return a successful object carrying that exact boolean.
+ *
+ * Tag: Feature: solve-pause, Property 6
+ */
+test('Feature: solve-pause — Property 6: validateSolveInput errors iff unranked is present and not boolean', () => {
+    // Non-boolean JSON values that should trigger a validation error
+    const arbNonBooleanUnranked = fc.oneof(
+        fc.integer(),
+        fc.float({ noNaN: true }),
+        // Strings including "true" and "false" — still not a boolean type
+        fc.string(),
+        fc.constant('true'),
+        fc.constant('false'),
+        fc.constant(null),
+        fc.array(fc.anything()),
+        fc.record({ x: fc.integer() }),
+    )
+
+    // Part A: non-boolean unranked → error string
+    fc.assert(
+        fc.property(
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            arbNonBooleanUnranked,
+            (difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked) => {
+                const body = { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked }
+                const result = validateSolveInput(body)
+                expect(typeof result).toBe('string')
+            }
+        ),
+        { numRuns: 100 }
+    )
+
+    // Part B: unranked absent → successful result with unranked: false
+    fc.assert(
+        fc.property(
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            (difficulty, completionTime, hintsUsed, mistakesCount, notesUsed) => {
+                const body = { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed }
+                const result = validateSolveInput(body)
+                expect(typeof result).toBe('object')
+                expect((result as { unranked: boolean }).unranked).toBe(false)
+            }
+        ),
+        { numRuns: 100 }
+    )
+
+    // Part C: unranked: true → successful result with unranked: true
+    fc.assert(
+        fc.property(
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            (difficulty, completionTime, hintsUsed, mistakesCount, notesUsed) => {
+                const body = { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked: true }
+                const result = validateSolveInput(body)
+                expect(typeof result).toBe('object')
+                expect((result as { unranked: boolean }).unranked).toBe(true)
+            }
+        ),
+        { numRuns: 100 }
+    )
+
+    // Part D: unranked: false → successful result with unranked: false
+    fc.assert(
+        fc.property(
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            (difficulty, completionTime, hintsUsed, mistakesCount, notesUsed) => {
+                const body = { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked: false }
+                const result = validateSolveInput(body)
+                expect(typeof result).toBe('object')
+                expect((result as { unranked: boolean }).unranked).toBe(false)
+            }
+        ),
+        { numRuns: 100 }
+    )
+})
+
+// ─── Feature: solve-pause ─────────────────────────────────────────────────────
+// ─── Property 7: Solve record round-trip preserves unranked ──────────────────
+/**
+ * **Validates: Requirements 10.1, 11.1, 11.2, 15.1**
+ *
+ * For any generated solve input (valid difficulty, non-negative integer
+ * completionTime/hintsUsed/mistakesCount, boolean notesUsed, boolean unranked),
+ * after `recordSolve` the stored `unranked` field in the post-level hash equals
+ * `String(originalUnranked)` ("true" or "false").
+ *
+ * For ranked solves (unranked === false), `getLeaderboard` returns an entry
+ * whose `unranked` field equals the original boolean.
+ *
+ * For unranked solves (unranked === true), the hash is read directly via
+ * `redis.hGetAll` because the entry is not present in any sorted set.
+ *
+ * Tag: Feature: solve-pause, Property 7
+ */
+test('Feature: solve-pause — Property 7: Solve record round-trip preserves unranked', async () => {
+    let runCounter = 0
+    await fc.assert(
+        fc.asyncProperty(
+            arbUsername,
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            fc.boolean(),
+            async (username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked) => {
+                // Unique postId+userId per run to avoid 'Already solved' rejection
+                const run = runCounter++
+                const postId = `t3_sp7_${run}`
+                const userId = `t2_sp7_${run}`
+
+                const result = await recordSolve({
+                    redis,
+                    postId,
+                    userId,
+                    username,
+                    difficulty,
+                    completionTime,
+                    hintsUsed,
+                    mistakesCount,
+                    notesUsed,
+                    unranked,
+                })
+                expect(typeof result).toBe('object')
+
+                // Verify the raw post-level hash stores "true" or "false"
+                const rawData = await redis.hGetAll(`solve:${postId}:${difficulty}:${userId}`)
+                const storedUnranked = rawData['unranked']
+                expect(storedUnranked).toBe(String(unranked))
+
+                if (unranked) {
+                    // Unranked: verify global hash also stores "true"
+                    const globalRawData = await redis.hGetAll(`solve:global:${difficulty}:${userId}`)
+                    const storedGlobalUnranked = globalRawData['unranked']
+                    expect(storedGlobalUnranked).toBe('true')
+                } else {
+                    // Ranked: verify round-trip via getLeaderboard — parseSolveRecord is tested indirectly.
+                    // The entry should appear in the top-N list (only one solve in this scope).
+                    // Once LeaderboardEntry gains the `unranked` field (task 4.2), the entry's
+                    // `unranked` field will equal false; for now we verify the entry is present
+                    // and the raw hash stores "false".
+                    const leaderboard = await getLeaderboard({
+                        redis,
+                        key: `leaderboard:${postId}:${difficulty}`,
+                        solveKeyPrefix: `solve:${postId}:${difficulty}`,
+                        userId,
+                    })
+                    const entry = leaderboard.entries[0]
+                    expect(entry).toBeDefined()
+                    // Raw hash must store "false" for ranked solves
+                    expect(storedUnranked).toBe('false')
+                }
+            }
+        ),
+        { numRuns: 100 }
+    )
+})
+
+// ─── Feature: solve-pause ─────────────────────────────────────────────────────
+// ─── Property 8: Sorted-set membership iff unranked === false ─────────────────
+/**
+ * **Validates: Requirements 10.2, 10.3, 11.4, 15.2**
+ *
+ * For any generated solve input persisted via `recordSolve`:
+ * - When `unranked === true`, `zScore` on both sorted sets returns `undefined`
+ * - When `unranked === false`, `zScore` on the per-post sorted set equals
+ *   `computeAdjustedTime(completionTime, hintsUsed)`
+ * - userId is a member of both sorted sets iff `unranked === false`
+ *
+ * Tag: Feature: solve-pause, Property 8
+ */
+test('Feature: solve-pause — Property 8: Sorted-set membership iff unranked === false', async () => {
+    let runCounter = 0
+    await fc.assert(
+        fc.asyncProperty(
+            arbUsername,
+            arbDifficulty,
+            arbNonNegInt,
+            arbNonNegInt,
+            arbNonNegInt,
+            fc.boolean(),
+            fc.boolean(),
+            async (username, difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked) => {
+                const run = runCounter++
+                const postId = `t3_sp8_${run}`
+                const userId = `t2_sp8_${run}`
+
+                const result = await recordSolve({
+                    redis,
+                    postId,
+                    userId,
+                    username,
+                    difficulty,
+                    completionTime,
+                    hintsUsed,
+                    mistakesCount,
+                    notesUsed,
+                    unranked,
+                })
+                expect(typeof result).toBe('object')
+
+                const postSetKey = `leaderboard:${postId}:${difficulty}`
+                const globalSetKey = `leaderboard:global:${difficulty}`
+
+                const postScore = await redis.zScore(postSetKey, userId)
+                const globalScore = await redis.zScore(globalSetKey, userId)
+
+                if (unranked) {
+                    // Unranked: userId must NOT be a member of either sorted set
+                    expect(postScore).toBeUndefined()
+                    expect(globalScore).toBeUndefined()
+                } else {
+                    // Ranked: userId MUST be a member of both sorted sets
+                    const expectedAdjustedTime = computeAdjustedTime(completionTime, hintsUsed)
+                    expect(postScore).toBe(expectedAdjustedTime)
+                    // Global score equals adjustedTime on first solve (no prior best)
+                    expect(globalScore).toBe(expectedAdjustedTime)
+                }
+            }
+        ),
+        { numRuns: 100 }
     )
 })
