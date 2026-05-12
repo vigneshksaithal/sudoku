@@ -297,6 +297,34 @@ const injectStyles = (): void => {
             94%            { transform: scale(0.9) translateX(0); }
         }
 
+        /* ── Corner ribbon banner ── */
+        .ribbon-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 150px;
+            height: 150px;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .ribbon {
+            position: absolute;
+            top: 32px;
+            left: -36px;
+            width: 190px;
+            padding: 8px 0;
+            background: linear-gradient(135deg, #ff4500 0%, #ff6b3a 100%);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            font-family: system-ui, -apple-system, sans-serif;
+            text-align: center;
+            letter-spacing: 0.03em;
+            transform: rotate(-45deg);
+            box-shadow: 0 3px 10px rgba(255,69,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
+        }
+
         /* ── Entry animations ── */
         @keyframes rise {
             from { opacity: 0; transform: translateY(14px); }
@@ -511,6 +539,15 @@ const render = (app: HTMLElement): void => {
     scene.appendChild(createPlayButton(defaultDifficulty))
 
     app.appendChild(scene)
+
+    // Corner ribbon banner
+    const ribbonWrapper = document.createElement('div')
+    ribbonWrapper.className = 'ribbon-wrapper'
+    const ribbon = document.createElement('div')
+    ribbon.className = 'ribbon'
+    ribbon.textContent = 'Play on Reddit'
+    ribbonWrapper.appendChild(ribbon)
+    app.appendChild(ribbonWrapper)
 
     startPlaybackLoop(cells)
 }
