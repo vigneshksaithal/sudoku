@@ -4,22 +4,23 @@ import type { Difficulty } from '../lib/types'
 import '../app.css'
 
 // 4×4 mini grid: 0 = empty cell
+// Solution: row0=1234, row1=3412, row2=2143, row3=4321
 const SAMPLE_GRID = [
     [1, 0, 3, 0],
-    [0, 3, 0, 2],
-    [3, 0, 2, 0],
-    [0, 2, 0, 3],
+    [0, 4, 0, 2],
+    [2, 0, 4, 0],
+    [0, 3, 0, 1],
 ] as const
 
 const SOLVE_SEQUENCE: ReadonlyArray<{ row: number; col: number; value: number }> = [
     { row: 0, col: 1, value: 2 },
     { row: 0, col: 3, value: 4 },
-    { row: 1, col: 0, value: 4 },
+    { row: 1, col: 0, value: 3 },
     { row: 1, col: 2, value: 1 },
-    { row: 2, col: 1, value: 4 },
-    { row: 2, col: 3, value: 1 },
-    { row: 3, col: 0, value: 2 },
-    { row: 3, col: 2, value: 4 },
+    { row: 2, col: 1, value: 1 },
+    { row: 2, col: 3, value: 3 },
+    { row: 3, col: 0, value: 4 },
+    { row: 3, col: 2, value: 2 },
 ]
 
 const GRID_SIZE = 4
