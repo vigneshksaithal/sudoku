@@ -28,7 +28,7 @@
         "@devvit/start": "^0.12.22",
         "@devvit/test": "^0.12.22",
         "@sveltejs/vite-plugin-svelte": "^7.1.0",
-        "@types/jsdom": "^28.0.1",
+        "@types/jsdom": "^28.0.3",
         "concurrently": "^9.2.1",
         "dotenv-cli": "^11.0.0",
         "fast-check": "^4.7.0",
