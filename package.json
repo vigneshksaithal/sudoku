@@ -22,7 +22,7 @@
         "@tailwindcss/vite": "^4.2.4",
         "devvit": "^0.12.22",
         "hono": "^4.12.17",
-        "tailwindcss": "^4.2.4"
+        "tailwindcss": "^4.3.0"
     },
     "devDependencies": {
         "@devvit/start": "^0.12.22",
