@@ -352,6 +352,23 @@ const injectStyles = (): void => {
         .pop {
             animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
+
+        /* ── Credit ── */
+        .credit {
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--label-2);
+            font-family: system-ui, -apple-system, sans-serif;
+            text-align: center;
+        }
+        .credit a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .credit a:hover {
+            text-decoration: underline;
+        }
     `
     document.head.appendChild(style)
 }
@@ -537,6 +554,19 @@ const render = (app: HTMLElement): void => {
 
     // Play button
     scene.appendChild(createPlayButton(defaultDifficulty))
+
+    // Credit line
+    const credit = document.createElement('p')
+    credit.className = 'credit enter'
+    credit.style.animationDelay = '300ms'
+    const creditLink = document.createElement('a')
+    creditLink.href = 'https://sudokuexchange.com'
+    creditLink.target = '_blank'
+    creditLink.rel = 'noopener noreferrer'
+    creditLink.textContent = 'SudokuExchange.com'
+    credit.appendChild(document.createTextNode('Built based on '))
+    credit.appendChild(creditLink)
+    scene.appendChild(credit)
 
     app.appendChild(scene)
 
