@@ -949,6 +949,9 @@
 							{validationMessage}
 						</p>
 					{/if}
+					<p class="text-center text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+						Puzzle generation powered by <a href="https://sudokuexchange.com" target="_blank" rel="noopener noreferrer" class="underline hover:text-neutral-600 dark:hover:text-neutral-300">SudokuExchange.com</a>
+					</p>
 				</div>
 			</div>
 		</div>
