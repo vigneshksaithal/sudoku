@@ -252,6 +252,28 @@
 		pauseButtonEl?.focus();
 	};
 
+	const handleRestartPuzzle = (): void => {
+		if (puzzles === null) return;
+		// Re-parse the original puzzle string — gives back a clean board with only givens
+		board = updateConflicts(parseBoard(puzzles[difficulty]));
+		// Reset all mutable game state (mirrors resetRoundState minus the timer zero)
+		selection = EMPTY_SELECTION;
+		highlightDigit = null;
+		validationMessage = null;
+		notesBoard = createEmptyNotesBoard();
+		notesMode = false;
+		hintsUsed = 0;
+		mistakesCount = 0;
+		notesUsed = false;
+		activeHint = null;
+		undoStack = clearStack();
+		lockedDigit = null;
+		digitFirstMode = false;
+		// elapsedSeconds intentionally NOT touched — timer keeps running
+		dispatchPauseEvent("RESET_ROUND"); // clears isPaused + unrankedDueToBackground
+		tickTimer(); // resume ticking (was stopped while paused)
+	};
+
 	const onVisibilityChange = (): void => {
 		if (screen !== "playing") return;
 		if (document.hidden) {
@@ -859,7 +881,7 @@
 						/>
 					</div>
 					{#if isPaused}
-						<PauseOverlay onResume={handleResume} />
+						<PauseOverlay onResume={handleResume} onRestart={handleRestartPuzzle} />
 					{/if}
 					{#if activeHint !== null}
 						<div class="hidden w-full sm:block">
@@ -949,9 +971,6 @@
 							{validationMessage}
 						</p>
 					{/if}
-					<p class="text-center text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
-						Puzzle generation powered by <a href="https://sudokuexchange.com" target="_blank" rel="noopener noreferrer" class="underline hover:text-neutral-600 dark:hover:text-neutral-300">SudokuExchange.com</a>
-					</p>
 				</div>
 			</div>
 		</div>
