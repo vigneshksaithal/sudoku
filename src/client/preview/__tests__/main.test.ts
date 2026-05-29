@@ -1,15 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as fc from 'fast-check'
 import { JSDOM } from 'jsdom'
-import { VALID_DIFFICULTIES } from '../../lib/constants'
+import { VALID_DIFFICULTIES, DIFFICULTY_STORAGE_KEY } from '../../lib/constants'
 import type { Difficulty } from '../../lib/types'
-
-const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-    simple: 'Simple',
-    easy: 'Easy',
-    intermediate: 'Intermediate',
-    expert: 'Expert',
-}
 
 const mockRequestExpandedMode = vi.fn()
 
@@ -46,34 +39,47 @@ describe('Preview screen DOM', () => {
         expect(h1?.textContent).toBe('Sudoku')
     })
 
-    it('renders four buttons with correct labels (simple, easy, intermediate, expert)', () => {
+    it('renders a play button with correct label', () => {
         const buttons = document.querySelectorAll('button')
-        expect(buttons).toHaveLength(4)
-        const labels = Array.from(buttons).map((b) => b.textContent)
-        expect(labels).toEqual(['Simple', 'Easy', 'Intermediate', 'Expert'])
+        expect(buttons).toHaveLength(1)
+        expect(buttons[0]?.textContent).toContain('PLAY NOW')
     })
 })
 
-// Property 3: Preview button click stores difficulty before requesting expanded mode
-// Validates: Requirements 2.5, 4.1
-describe('Property 3: Preview button click stores difficulty before requesting expanded mode', () => {
-    it('for each valid difficulty, click stores it in localStorage and calls requestExpandedMode(event, "game")', () => {
-        fc.assert(
-            fc.property(fc.constantFrom(...VALID_DIFFICULTIES), (difficulty) => {
-                localStorage.removeItem('sudoku-difficulty')
-                mockRequestExpandedMode.mockClear()
+describe('Preview button click behavior', () => {
+    it('click uses default difficulty "easy" when no previous difficulty is stored', () => {
+        localStorage.removeItem(DIFFICULTY_STORAGE_KEY)
+        mockRequestExpandedMode.mockClear()
 
-                const buttons = Array.from(document.querySelectorAll('button'))
-                const btn = buttons.find((b) => b.textContent === DIFFICULTY_LABELS[difficulty])
-                expect(btn).toBeDefined()
+        const btn = document.querySelector('button')
+        expect(btn).toBeDefined()
 
-                btn!.click()
+        btn!.click()
 
-                expect(localStorage.getItem('sudoku-difficulty')).toBe(difficulty)
-                expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
-                expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
-            })
-        )
+        expect(localStorage.getItem(DIFFICULTY_STORAGE_KEY)).toBe('easy')
+        expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
+        expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
+    })
+
+    it('click uses stored difficulty if one exists', async () => {
+        // Test all valid difficulties
+        for (const difficulty of VALID_DIFFICULTIES) {
+            const { store } = setupEnv()
+            store.clear()
+            store.set(DIFFICULTY_STORAGE_KEY, difficulty)
+            mockRequestExpandedMode.mockClear()
+            vi.resetModules()
+            await import('../main')
+
+            const btn = document.querySelector('button')
+            expect(btn).toBeDefined()
+
+            btn!.click()
+
+            expect(localStorage.getItem(DIFFICULTY_STORAGE_KEY)).toBe(difficulty)
+            expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
+            expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
+        }
     })
 
     it('still requests expanded mode when localStorage write throws', async () => {
@@ -90,10 +96,10 @@ describe('Property 3: Preview button click stores difficulty before requesting e
         vi.resetModules()
         await import('../main')
 
-        const firstButton = document.querySelector('button')
-        expect(firstButton).toBeDefined()
+        const btn = document.querySelector('button')
+        expect(btn).toBeDefined()
 
-        firstButton!.click()
+        btn!.click()
 
         expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
         expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
