@@ -46,34 +46,41 @@ describe('Preview screen DOM', () => {
         expect(h1?.textContent).toBe('Sudoku')
     })
 
-    it('renders four buttons with correct labels (simple, easy, intermediate, expert)', () => {
+    it('renders one play button', () => {
         const buttons = document.querySelectorAll('button')
-        expect(buttons).toHaveLength(4)
-        const labels = Array.from(buttons).map((b) => b.textContent)
-        expect(labels).toEqual(['Simple', 'Easy', 'Intermediate', 'Expert'])
+        expect(buttons).toHaveLength(1)
+        expect(buttons[0]?.textContent).toBe('▶PLAY NOW')
     })
 })
 
 // Property 3: Preview button click stores difficulty before requesting expanded mode
 // Validates: Requirements 2.5, 4.1
 describe('Property 3: Preview button click stores difficulty before requesting expanded mode', () => {
-    it('for each valid difficulty, click stores it in localStorage and calls requestExpandedMode(event, "game")', () => {
-        fc.assert(
-            fc.property(fc.constantFrom(...VALID_DIFFICULTIES), (difficulty) => {
-                localStorage.removeItem('sudoku-difficulty')
-                mockRequestExpandedMode.mockClear()
+    it('for each valid difficulty, click stores it in localStorage and calls requestExpandedMode(event, "game")', async () => {
+        for (const difficulty of VALID_DIFFICULTIES) {
+            localStorage.setItem('sudoku-difficulty', difficulty)
+            mockRequestExpandedMode.mockClear()
 
-                const buttons = Array.from(document.querySelectorAll('button'))
-                const btn = buttons.find((b) => b.textContent === DIFFICULTY_LABELS[difficulty])
-                expect(btn).toBeDefined()
+            // Clear the app container before re-importing
+            const app = document.getElementById('app')
+            if (app) app.innerHTML = ''
 
-                btn!.click()
+            vi.resetModules()
+            await import('../main')
 
-                expect(localStorage.getItem('sudoku-difficulty')).toBe(difficulty)
-                expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
-                expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
-            })
-        )
+            const buttons = Array.from(document.querySelectorAll('button'))
+            const btn = buttons.find((b) => b.textContent === '▶PLAY NOW')
+            expect(btn).toBeDefined()
+
+            // clear local storage to check if click actually stores the difficulty
+            localStorage.removeItem('sudoku-difficulty')
+
+            btn!.click()
+
+            expect(localStorage.getItem('sudoku-difficulty')).toBe(difficulty)
+            expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
+            expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
+        }
     })
 
     it('still requests expanded mode when localStorage write throws', async () => {
