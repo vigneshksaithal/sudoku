@@ -7,6 +7,9 @@ import { DIFFICULTIES, boardToString, generatePuzzleWithDifficulty } from './lib
 /** Redis key for tracking the currently pinned post. */
 const PINNED_POST_KEY = 'pinnedPostId'
 
+/** Permanent r/Sudoku FAQ post, restored after each daily game post. */
+const FAQ_POST_ID = 't3_1kcughf'
+
 /** Format a Date as DD-MM-YYYY for use in post titles. */
 export const formatPostDate = (date: Date): string => {
   const dd = String(date.getDate()).padStart(2, '0')
@@ -46,6 +49,20 @@ const pinPost = async (postId: string): Promise<void> => {
   await redis.set(PINNED_POST_KEY, postId)
 }
 
+/**
+ * Restore the permanent FAQ to sticky slot 1 after a daily game has been
+ * posted. Errors are swallowed so a missing mod permission never prevents
+ * creation of the daily post.
+ */
+const restoreFaqPost = async (): Promise<void> => {
+  try {
+    const faqPost = await reddit.getPostById(FAQ_POST_ID as T3)
+    await faqPost.sticky(1)
+  } catch {
+    // Silently ignore — app may not have mod permissions or post may be deleted
+  }
+}
+
 export const createPost = async (): Promise<{ id: string }> => {
   const { subredditName } = context
   if (!subredditName) throw new Error('subredditName is required')
@@ -77,6 +94,7 @@ export const createPost = async (): Promise<{ id: string }> => {
 
   await unpinPreviousPost()
   await pinPost(post.id)
+  await restoreFaqPost()
 
   return post
 }

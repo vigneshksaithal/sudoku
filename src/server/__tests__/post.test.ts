@@ -73,13 +73,33 @@ test('createPost propagates Reddit API errors', async () => {
 
 test('createPost stickies the new post to slot 1', async () => {
     const mockSticky = vi.fn().mockResolvedValue(undefined)
+    const mockFaqSticky = vi.fn().mockResolvedValue(undefined)
     vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_newpost' } as never)
-    vi.spyOn(reddit, 'getPostById').mockResolvedValue({ id: 't3_newpost', sticky: mockSticky } as never)
+    vi.spyOn(reddit, 'getPostById')
+        .mockResolvedValueOnce({ id: 't3_newpost', sticky: mockSticky } as never)
+        .mockResolvedValueOnce({ id: 't3_1kcughf', sticky: mockFaqSticky } as never)
     vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc2' })
 
     await createPost()
 
     expect(mockSticky).toHaveBeenCalledWith(1)
+    expect(mockFaqSticky).toHaveBeenCalledWith(1)
+}, 60_000)
+
+test('createPost restores the FAQ after pinning the daily post', async () => {
+    const calls: string[] = []
+    const mockDailySticky = vi.fn().mockImplementation(async () => calls.push('daily'))
+    const mockFaqSticky = vi.fn().mockImplementation(async () => calls.push('faq'))
+
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_newpost' } as never)
+    vi.spyOn(reddit, 'getPostById')
+        .mockResolvedValueOnce({ id: 't3_newpost', sticky: mockDailySticky } as never)
+        .mockResolvedValueOnce({ id: 't3_1kcughf', sticky: mockFaqSticky } as never)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc2' })
+
+    await createPost()
+
+    expect(calls).toEqual(['daily', 'faq'])
 }, 60_000)
 
 test('createPost stores the new post id as pinnedPostId in Redis', async () => {
