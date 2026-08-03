@@ -14,7 +14,7 @@ import { Hono } from 'hono'
 import { createPost } from './post'
 import { formatPostDate } from './post'
 import { DIFFICULTIES } from './lib/sudoku'
-import { getLeaderboard, recordSolve, validateSolveInput } from './lib/leaderboard'
+import { buildLeaderboardCacheKey, getLeaderboard, recordSolve, validateSolveInput } from './lib/leaderboard'
 import { validatePuzzle } from './lib/puzzle-validator'
 import { checkCooldown, setCooldown, addToSubmissionHistory, getSubmissionHistory, incrementSolveCount } from './lib/community-submit'
 import { createStickyComment } from './lib/sticky-comment'
@@ -333,7 +333,7 @@ app.get('/api/leaderboard/post', async (c) => {
       })
       return JSON.stringify(result)
     },
-    { key: `leaderboard:post:${postId}:${difficulty}`, ttl: 10 }
+    { key: buildLeaderboardCacheKey(`leaderboard:post:${postId}:${difficulty}`, userId), ttl: 10 }
   )
 
   return c.json({ status: 'success', data: JSON.parse(data) })
@@ -358,7 +358,7 @@ app.get('/api/leaderboard/global', async (c) => {
       })
       return JSON.stringify(result)
     },
-    { key: `leaderboard:global:${difficulty}`, ttl: 10 }
+    { key: buildLeaderboardCacheKey(`leaderboard:global:${difficulty}`, userId), ttl: 10 }
   )
 
   return c.json({ status: 'success', data: JSON.parse(data) })

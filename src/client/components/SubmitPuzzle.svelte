@@ -246,12 +246,19 @@
                         </p>
                     {/if}
 
+                    <p
+                        class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900/70 dark:bg-blue-950/40 dark:text-blue-200"
+                    >
+                        Publishing creates a public Reddit post from your account.
+                        It will show this puzzle and identify you as its creator.
+                    </p>
+
                     <div class="flex gap-2">
                         <button
                             class="flex-1 min-h-11 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             onclick={handleConfirm}
                         >
-                            Submit
+                            Publish Puzzle
                         </button>
                         <button
                             class="flex-1 min-h-11 rounded-lg bg-neutral-100 dark:bg-neutral-700 px-4 py-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300 transition-all hover:bg-neutral-200 dark:hover:bg-neutral-600 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -4,10 +4,32 @@ import { expect, describe, it } from 'vitest'
 
 import {
     computeAdjustedTime,
+    buildLeaderboardCacheKey,
     validateSolveInput,
     recordSolve,
     getLeaderboard,
 } from '../leaderboard'
+
+// ─── buildLeaderboardCacheKey ────────────────────────────────────────────────
+
+describe('buildLeaderboardCacheKey', () => {
+    it('keeps viewer-specific leaderboard responses in separate cache entries', () => {
+        const leaderboardKey = 'leaderboard:global:easy'
+
+        expect(buildLeaderboardCacheKey(leaderboardKey, 't2_alice')).toBe(
+            'leaderboard:global:easy:viewer:t2_alice'
+        )
+        expect(buildLeaderboardCacheKey(leaderboardKey, 't2_bob')).toBe(
+            'leaderboard:global:easy:viewer:t2_bob'
+        )
+    })
+
+    it('uses a separate cache entry for anonymous viewers', () => {
+        expect(buildLeaderboardCacheKey('leaderboard:global:easy')).toBe(
+            'leaderboard:global:easy:viewer:anonymous'
+        )
+    })
+})
 
 // ─── computeAdjustedTime ─────────────────────────────────────────────────────
 

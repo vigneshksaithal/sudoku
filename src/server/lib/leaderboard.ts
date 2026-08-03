@@ -70,6 +70,10 @@ export const validateSolveInput = (
 export const computeAdjustedTime = (completionTime: number, hintsUsed: number): number =>
     completionTime + hintsUsed * 30
 
+/** Build a cache key for a leaderboard response that may include a viewer's own rank. */
+export const buildLeaderboardCacheKey = (leaderboardKey: string, userId?: string): string =>
+    `${leaderboardKey}:viewer:${userId ?? 'anonymous'}`
+
 // ─── Redis Operations ─────────────────────────────────────────────────────────
 
 const parseUnranked = (raw: string | undefined): boolean => raw === 'true'
