@@ -35,13 +35,14 @@ const unpinPreviousPost = async (): Promise<void> => {
 }
 
 /**
- * Pin the given post to sticky slot 1. Errors are swallowed so post creation
- * is never blocked by a missing mod permission.
+ * Pin the given post to sticky slot 3, reserving slots 1 and 2 for the
+ * permanent FAQ and weekly discussion thread. Errors are swallowed so post
+ * creation is never blocked by a missing mod permission.
  */
 const pinPost = async (postId: string): Promise<void> => {
   try {
     const post = await reddit.getPostById(postId as T3)
-    await post.sticky(1)
+    await post.sticky(3)
   } catch {
     // Silently ignore — app may not have mod permissions
   }

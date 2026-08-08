@@ -71,7 +71,7 @@ test('createPost propagates Reddit API errors', async () => {
     await expect(createPost()).rejects.toThrow('Rate limited')
 })
 
-test('createPost stickies the new post to slot 1', async () => {
+test('createPost stickies the new post to slot 3', async () => {
     const mockSticky = vi.fn().mockResolvedValue(undefined)
     const mockFaqSticky = vi.fn().mockResolvedValue(undefined)
     vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_newpost' } as never)
@@ -82,7 +82,7 @@ test('createPost stickies the new post to slot 1', async () => {
 
     await createPost()
 
-    expect(mockSticky).toHaveBeenCalledWith(1)
+    expect(mockSticky).toHaveBeenCalledWith(3)
     expect(mockFaqSticky).toHaveBeenCalledWith(1)
 }, 60_000)
 
