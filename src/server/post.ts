@@ -10,6 +10,9 @@ const PINNED_POST_KEY = 'pinnedPostId'
 /** Permanent r/Sudoku FAQ post, restored after each daily game post. */
 const FAQ_POST_ID = 't3_1kcughf'
 
+/** r/Sudoku post-flair template for daily game posts. */
+const DAILY_GAME_FLAIR_ID = '3f535fd8-439f-11f1-a102-123c67b47fa1'
+
 /** Format a Date as DD-MM-YYYY for use in post titles. */
 export const formatPostDate = (date: Date): string => {
   const dd = String(date.getDate()).padStart(2, '0')
@@ -73,6 +76,7 @@ export const createPost = async (): Promise<{ id: string }> => {
     subredditName,
     title,
     entry: 'default',
+    flairId: DAILY_GAME_FLAIR_ID,
   })
 
   const fields: Record<string, string> = { createdAt: String(Date.now()) }
