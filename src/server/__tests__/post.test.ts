@@ -21,6 +21,7 @@ test('createPost generates 4 puzzles, stores in Redis, and submits post', async 
         subredditName,
         title: expect.stringMatching(/^Sudoku #\d{2}-\d{2}-\d{4}$/),
         entry: 'default',
+        flairId: '3f535fd8-439f-11f1-a102-123c67b47fa1',
     })
     expect(result).toEqual({ id: 't3_abc123' })
 
