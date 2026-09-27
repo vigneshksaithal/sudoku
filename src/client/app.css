@@ -20,3 +20,26 @@ body {
 #app {
     height: 100%;
 }
+
+/*
+ * Grid sizing: .grid-fit takes whatever height is left after the header and
+ * controls have taken their natural size (App.svelte measures it and sizes the
+ * square grid to fit). Larger system font / display-size settings therefore
+ * shrink the grid instead of pushing the controls out of the webview.
+ * `contain: size` stops the grid's own size feeding back into the measurement.
+ * The min-height keeps the grid playable on very short webviews; the page then
+ * scrolls instead of clipping.
+ */
+.grid-fit {
+    contain: size;
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 260px;
+}
+
+.grid-fit-square {
+    position: relative;
+}

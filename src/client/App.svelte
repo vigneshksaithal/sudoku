@@ -139,7 +139,6 @@
 	let puzzleType: PuzzleType = $state("generated");
 	let creatorUsername: string | null = $state(null);
 	let solveCount: number | null = $state(null);
-	let puzzleCreatedAt: number | null = $state(null);
 	let pauseState = $state(initialPauseState);
 	let pauseButtonEl: HTMLButtonElement | null = $state(null);
 
@@ -174,7 +173,6 @@
 		puzzleType = "generated";
 		creatorUsername = null;
 		solveCount = null;
-		puzzleCreatedAt = null;
 		dispatchPauseEvent("RESET_ROUND");
 		startTimer();
 	};
@@ -199,7 +197,6 @@
 				puzzleType = "community";
 				creatorUsername = json.data.creatorUsername ?? null;
 				solveCount = json.data.solveCount ?? null;
-				puzzleCreatedAt = json.data.createdAt ?? null;
 				// For community puzzles, set difficulty to the single available key
 				const keys = Object.keys(json.data.puzzles ?? {});
 				const communityDifficulty = keys[0];
@@ -210,7 +207,6 @@
 				puzzleType = "generated";
 				creatorUsername = null;
 				solveCount = null;
-				puzzleCreatedAt = json.data.createdAt ?? null;
 			}
 			if (puzzles) {
 				loadDifficultyBoard(difficulty);
@@ -760,20 +756,21 @@
 
 	const nextDifficulty = $derived(getNextDifficulty(difficulty));
 
-	const puzzleTitle = $derived.by((): string => {
-		if (puzzleCreatedAt === null || puzzleCreatedAt === 0) return "Sudoku";
-		const d = new Date(puzzleCreatedAt);
-		const dd = String(d.getDate()).padStart(2, "0");
-		const mm = String(d.getMonth() + 1).padStart(2, "0");
-		const yyyy = d.getFullYear();
-		return `Sudoku #${dd}-${mm}-${yyyy}`;
-	});
+	// Space left for the grid after the header and controls are laid out.
+	let gridFitWidth = $state(0);
+	let gridFitHeight = $state(0);
+	const gridSize = $derived(
+		gridFitWidth > 0 && gridFitHeight > 0
+			? `${Math.floor(Math.min(gridFitWidth, gridFitHeight, 480))}px`
+			: "min(95vw, 480px)",
+	);
+
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
 
 <main
-	class="h-full w-full overflow-hidden bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100"
+	class="h-full w-full overflow-y-auto overscroll-contain bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100"
 >
 	{#if loading}
 		<div class="flex h-full w-full items-center justify-center px-4">
@@ -793,30 +790,48 @@
 		</div>
 	{:else if screen === "playing"}
 		<div
-			class="mx-auto flex h-full w-full max-w-2xl flex-col gap-1 px-2 py-1 sm:max-w-4xl sm:gap-2 sm:py-2"
+			class="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-1 px-2 py-1 sm:max-w-4xl sm:gap-2 sm:py-2"
 		>
 			<div
-				class="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:gap-2"
+				class="flex shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-1"
 			>
-				{#if puzzleType === "community"}
-					<span
-						class="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium capitalize text-white sm:px-4 sm:py-1.5 sm:text-sm"
-					>
-						{difficulty}
-					</span>
-				{:else}
-					{#each VALID_DIFFICULTIES as d (d)}
-						<button
-							class="rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 sm:px-4 sm:py-1.5 sm:text-sm
-								{d === difficulty
-								? 'bg-blue-600 text-white'
-								: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
-							onclick={() => changeDifficulty(d)}
+				<div class="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
+					{#if puzzleType === "community"}
+						<span
+							class="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium capitalize text-white sm:px-4 sm:py-1.5 sm:text-sm"
 						>
-							{d}
-						</button>
-					{/each}
-				{/if}
+							{difficulty}
+						</span>
+					{:else}
+						{#each VALID_DIFFICULTIES as d (d)}
+							<button
+								class="rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 sm:px-4 sm:py-1.5 sm:text-sm
+									{d === difficulty
+									? 'bg-blue-600 text-white'
+									: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
+								onclick={() => changeDifficulty(d)}
+							>
+								{d}
+							</button>
+						{/each}
+					{/if}
+				</div>
+				<div class="flex items-center gap-2">
+					<p class="font-mono text-xs tabular-nums text-neutral-400">
+						{formatTime(elapsedSeconds)}
+					</p>
+					<button
+						class="flex items-center justify-center rounded-md h-9 min-w-11 bg-neutral-100 text-neutral-700 transition-all active:scale-95 hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
+						aria-label="Pause solve"
+						bind:this={pauseButtonEl}
+						onclick={handlePause}
+						disabled={loading || error !== null || isPaused}
+					>
+						<span class="text-lg leading-none" aria-hidden="true"
+							>⏸</span
+						>
+					</button>
+				</div>
 			</div>
 			{#if creatorUsername !== null || solveCount !== null}
 				<div
@@ -831,58 +846,37 @@
 				</div>
 			{/if}
 
-			<div class="shrink-0 flex flex-col items-center gap-0.5">
-				<p
-					class="text-sm font-semibold text-neutral-700 dark:text-neutral-300"
-				>
-					{puzzleTitle}
-				</p>
-				<div class="flex items-center gap-2">
-					<p class="font-mono text-xs tabular-nums text-neutral-400">
-						{formatTime(elapsedSeconds)}
-					</p>
-					<button
-						class="flex items-center justify-center rounded-md min-h-11 min-w-11 bg-neutral-100 text-neutral-700 transition-all active:scale-95 hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
-						aria-label="Pause solve"
-						bind:this={pauseButtonEl}
-						onclick={handlePause}
-						disabled={loading || error !== null || isPaused}
-					>
-						<span class="text-lg leading-none" aria-hidden="true"
-							>⏸</span
-						>
-					</button>
-				</div>
-			</div>
-
 			<div
 				class="flex min-h-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-center"
 			>
-				<!-- Grid area: no flex-1 on mobile, grid is naturally sized -->
+				<!-- Grid area: fills the space left after the controls take their natural height -->
 				<div
-					class="relative flex shrink-0 flex-col items-center sm:w-3/5 sm:flex-initial sm:flex-1"
+					class="flex min-h-0 flex-1 flex-col items-center sm:w-3/5 sm:self-stretch"
 				>
 					<div
-						class="w-full"
-						style="max-width: min(95vw, calc(100vh - 220px), 480px)"
+						class="grid-fit"
+						bind:clientWidth={gridFitWidth}
+						bind:clientHeight={gridFitHeight}
 					>
-						<Grid
-							{board}
-							{selection}
-							{notesBoard}
-							{highlightDigit}
-							{techniqueHighlight}
-							hintDigit={activeHint?.action === "placement"
-								? activeHint.digit
-								: null}
-							onCellSelect={handleCellSelect}
-							onDragSelect={handleDragSelect}
-							onShiftCellSelect={handleShiftCellSelect}
-						/>
+						<div class="grid-fit-square" style:width={gridSize}>
+							<Grid
+								{board}
+								{selection}
+								{notesBoard}
+								{highlightDigit}
+								{techniqueHighlight}
+								hintDigit={activeHint?.action === "placement"
+									? activeHint.digit
+									: null}
+								onCellSelect={handleCellSelect}
+								onDragSelect={handleDragSelect}
+								onShiftCellSelect={handleShiftCellSelect}
+							/>
+							{#if isPaused}
+								<PauseOverlay onResume={handleResume} onRestart={handleRestartPuzzle} />
+							{/if}
+						</div>
 					</div>
-					{#if isPaused}
-						<PauseOverlay onResume={handleResume} onRestart={handleRestartPuzzle} />
-					{/if}
 					{#if activeHint !== null}
 						<div class="hidden w-full sm:block">
 							<HintPanel

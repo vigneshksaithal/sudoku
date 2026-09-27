@@ -39,7 +39,7 @@ export const getCellClasses = (params: CellClassParams): string => {
 // --- Helpers (below callers) ---
 
 const BASE_CLASSES =
-    'flex aspect-square min-h-9 min-w-9 items-center justify-center text-lg font-mono focus:outline-none'
+    'flex aspect-square min-h-0 min-w-0 overflow-hidden items-center justify-center text-lg font-mono focus:outline-none'
 
 const getBorderClasses = (r: number, c: number): string[] => {
     const borders: string[] = []
