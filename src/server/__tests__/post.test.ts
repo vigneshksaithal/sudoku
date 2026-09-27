@@ -130,7 +130,7 @@ test('createPost unstickies the previously pinned post before pinning the new on
     await createPost()
 
     expect(mockUnsticky).toHaveBeenCalled()
-    expect(mockSticky).toHaveBeenCalledWith(1)
+    expect(mockSticky).toHaveBeenCalledWith(3)
 }, 60_000)
 
 test('createPost succeeds silently when sticky call fails', async () => {
@@ -166,4 +166,54 @@ test('createPost succeeds silently when unsticky call fails', async () => {
     const result = await createPost()
 
     expect(result).toEqual({ id: 't3_newpost3' })
+}, 60_000)
+
+const DAILY_FLAIR_ID = '3f535fd8-439f-11f1-a102-123c67b47fa1'
+
+test('createPost re-applies the daily flair before pinning when it is missing', async ({ subredditName }) => {
+    const calls: string[] = []
+    const mockSticky = vi.fn().mockImplementation(async () => calls.push('sticky'))
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_noflair' } as never)
+    vi.spyOn(reddit, 'getPostById').mockResolvedValue({ id: 't3_noflair', flair: undefined, sticky: mockSticky } as never)
+    const flairSpy = vi.spyOn(reddit, 'setPostFlair').mockImplementation(async () => { calls.push('flair') })
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc7' })
+
+    await createPost()
+
+    expect(flairSpy).toHaveBeenCalledWith({ subredditName, postId: 't3_noflair', flairTemplateId: DAILY_FLAIR_ID })
+    expect(calls.slice(0, 2)).toEqual(['flair', 'sticky'])
+}, 60_000)
+
+test('createPost does not re-apply the daily flair when it is already set', async () => {
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_flaired' } as never)
+    vi.spyOn(reddit, 'getPostById').mockResolvedValue({
+        id: 't3_flaired',
+        flair: { templateId: DAILY_FLAIR_ID },
+        sticky: vi.fn().mockResolvedValue(undefined),
+    } as never)
+    const flairSpy = vi.spyOn(reddit, 'setPostFlair').mockResolvedValue(undefined)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc8' })
+
+    await createPost()
+
+    expect(flairSpy).not.toHaveBeenCalled()
+}, 60_000)
+
+test('createPost falls back to the next sticky position when slot 3 is rejected', async () => {
+    const mockSticky = vi.fn().mockImplementation(async (position?: number) => {
+        if (position === 3) throw new Error('INVALID_STICKY_POSITION')
+    })
+    vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_fallback' } as never)
+    vi.spyOn(reddit, 'getPostById').mockResolvedValue({
+        id: 't3_fallback',
+        flair: { templateId: DAILY_FLAIR_ID },
+        sticky: mockSticky,
+    } as never)
+    vi.spyOn(stickyCommentModule, 'createStickyComment').mockResolvedValue({ success: true, commentId: 't1_sc9' })
+
+    const result = await createPost()
+
+    expect(result).toEqual({ id: 't3_fallback' })
+    expect(mockSticky).toHaveBeenNthCalledWith(1, 3)
+    expect(mockSticky).toHaveBeenNthCalledWith(2)
 }, 60_000)
