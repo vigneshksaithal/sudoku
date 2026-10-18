@@ -412,6 +412,34 @@ app.post('/internal/scheduler/daily-post', async (c) => {
   }
 })
 
+// --- POST /api/preview/track ---
+
+app.post('/api/preview/track', async (c) => {
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
+  if (!body) {
+    return c.json({ status: 'error', message: 'Invalid JSON' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const { variant } = body
+  const validVariants = ['A', 'B', 'C', 'D', 'E']
+  if (typeof variant !== 'string' || !validVariants.includes(variant)) {
+    return c.json({ status: 'error', message: 'Invalid variant' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const postId = context.postId ?? 'global'
+  await redis.hIncrBy(`preview:clicks:${postId}`, variant, 1)
+  await redis.hIncrBy('preview:clicks:all', variant, 1)
+
+  return c.json({ status: 'success', data: {} })
+})
+
+// --- GET /api/preview/stats ---
+
+app.get('/api/preview/stats', async (c) => {
+  const stats = await redis.hGetAll('preview:clicks:all')
+  return c.json({ status: 'success', data: stats })
+})
+
 // --- GET /api/ping ---
 
 const pingHandler = (c: Context): Response => {
