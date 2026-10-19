@@ -1,4 +1,5 @@
 import { context, redis, reddit } from '@devvit/web/server'
+import type { Post } from '@devvit/web/server'
 import type { T3 } from '@devvit/shared-types/tid.js'
 
 import { createStickyComment } from './lib/sticky-comment'
@@ -38,16 +39,41 @@ const unpinPreviousPost = async (): Promise<void> => {
 }
 
 /**
- * Pin the given post to sticky slot 3, reserving slots 1 and 2 for the
- * permanent FAQ and weekly discussion thread. Errors are swallowed so post
- * creation is never blocked by a missing mod permission.
+ * Make sure the daily game carries the r/Sudoku daily-game flair. The flair is
+ * requested at creation, but it is re-applied here if it did not stick, so the
+ * post is always flaired before it is pinned. Errors are logged, never thrown.
  */
-const pinPost = async (postId: string): Promise<void> => {
+const ensureDailyFlair = async (post: Post, subredditName: string): Promise<void> => {
+  if (post.flair?.templateId === DAILY_GAME_FLAIR_ID) return
+  try {
+    await reddit.setPostFlair({
+      subredditName,
+      postId: post.id,
+      flairTemplateId: DAILY_GAME_FLAIR_ID,
+    })
+  } catch (error) {
+    console.error('[ensureDailyFlair] Failed to set daily game flair:', error)
+  }
+}
+
+/**
+ * Flair and pin the new daily game. Sticky slot 3 is preferred, reserving
+ * slots 1 and 2 for the permanent FAQ and weekly discussion thread. If Reddit
+ * rejects slot 3, fall back to the next available sticky position. Errors are
+ * logged (visible via `devvit logs`) so post creation is never blocked.
+ */
+const pinPost = async (postId: string, subredditName: string): Promise<void> => {
   try {
     const post = await reddit.getPostById(postId as T3)
-    await post.sticky(3)
-  } catch {
-    // Silently ignore — app may not have mod permissions
+    await ensureDailyFlair(post, subredditName)
+    try {
+      await post.sticky(3)
+    } catch (error) {
+      console.warn('[pinPost] Sticky slot 3 rejected, retrying without a slot:', error)
+      await post.sticky()
+    }
+  } catch (error) {
+    console.error('[pinPost] Failed to pin daily game post:', error)
   }
 
   await redis.set(PINNED_POST_KEY, postId)
@@ -98,7 +124,7 @@ export const createPost = async (): Promise<{ id: string }> => {
   )
 
   await unpinPreviousPost()
-  await pinPost(post.id)
+  await pinPost(post.id, subredditName)
   await restoreFaqPost()
 
   return post
