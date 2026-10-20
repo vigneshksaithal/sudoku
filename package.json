@@ -10,34 +10,38 @@
         "dev": "concurrently -k -p \"[{name}]\" -n \"BUILD,DEVVIT\" -c \"blue,magenta\" \"vite build --watch\" \"dotenv -e .env -- devvit playtest\"",
         "dev:devvit": "dotenv -e .env -- devvit playtest",
         "login": "devvit login",
-        "check": "svelte-check --tsconfig ./src/client/tsconfig.json",
+        "check": "svelte-check --tsgo --tsconfig ./tsconfig.svelte-check.json",
         "launch": "bun run build && bun run deploy && devvit publish",
-        "type-check": "tsc --build",
+        "type-check": "node node_modules/@typescript/native/bin/tsc --build",
         "test": "vitest run",
         "test:watch": "vitest"
     },
     "dependencies": {
-        "@devvit/web": "^0.13.9",
-        "@hono/node-server": "^2.0.11",
+        "@devvit/web": "^0.15.0",
+        "@hono/node-server": "^2.1.5",
         "@tailwindcss/vite": "^4.3.3",
-        "devvit": "^0.13.9",
-        "hono": "^4.12.31",
+        "devvit": "^0.15.0",
+        "hono": "^4.13.13",
         "tailwindcss": "^4.3.3"
     },
     "devDependencies": {
-        "@devvit/start": "^0.13.9",
-        "@devvit/test": "^0.13.9",
-        "@sveltejs/vite-plugin-svelte": "^7.2.0",
-        "@types/jsdom": "^28.0.3",
-        "concurrently": "^10.0.3",
+        "@devvit/start": "^0.15.0",
+        "@devvit/test": "^0.15.0",
+        "@sveltejs/vite-plugin-svelte": "^7.3.1",
+        "@types/jsdom": "^30.0.0",
+        "@typescript/native": "npm:typescript@7.0.2",
+        "concurrently": "^10.0.6",
         "dotenv-cli": "^11.0.0",
-        "fast-check": "^4.9.0",
-        "jsdom": "^29.1.1",
-        "svelte": "^5.56.7",
-        "svelte-check": "^4.7.3",
+        "fast-check": "^4.10.2",
+        "jsdom": "^30.1.3",
+        "svelte": "^5.57.2",
+        "svelte-check": "^4.7.7",
         "typescript": "6.0.3",
-        "vite": "^8.1.5",
-        "vitest": "^4.1.10"
+        "vite": "^8.3.4",
+        "vitest": "^5.0.5"
     },
-    "packageManager": "bun@1.3.11"
+    "engines": {
+        "node": ">=24.18.0 <25"
+    },
+    "packageManager": "bun@1.4.3"
 }

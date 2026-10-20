@@ -1,15 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import * as fc from 'fast-check'
 import { JSDOM } from 'jsdom'
-import { VALID_DIFFICULTIES } from '../../lib/constants'
-import type { Difficulty } from '../../lib/types'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-    simple: 'Simple',
-    easy: 'Easy',
-    intermediate: 'Intermediate',
-    expert: 'Expert',
-}
+import { DIFFICULTY_STORAGE_KEY, VALID_DIFFICULTIES } from '../../lib/constants'
 
 const mockRequestExpandedMode = vi.fn()
 
@@ -17,85 +9,89 @@ vi.mock('@devvit/web/client', () => ({
     requestExpandedMode: mockRequestExpandedMode,
 }))
 
-const setupEnv = (): { dom: JSDOM; store: Map<string, string> } => {
-    const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>')
-    const store = new Map<string, string>()
+let dom: JSDOM
 
-    vi.stubGlobal('document', dom.window.document)
-    vi.stubGlobal('localStorage', {
-        getItem: (key: string): string | null => store.get(key) ?? null,
-        setItem: (key: string, value: string): void => { store.set(key, value) },
-        removeItem: (key: string): void => { store.delete(key) },
-        clear: (): void => { store.clear() },
+beforeEach(() => {
+    vi.useFakeTimers()
+    dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>', {
+        url: 'https://example.com',
     })
+    vi.stubGlobal('document', dom.window.document)
+    vi.stubGlobal('localStorage', dom.window.localStorage)
+    mockRequestExpandedMode.mockReset()
+    vi.resetModules()
+})
 
-    return { dom, store }
+afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    dom.window.close()
+    vi.unstubAllGlobals()
+})
+
+const renderPreview = async (savedDifficulty?: string): Promise<void> => {
+    if (savedDifficulty !== undefined) {
+        localStorage.setItem(DIFFICULTY_STORAGE_KEY, savedDifficulty)
+    }
+    await import('../main')
 }
 
-beforeEach(async () => {
-    const { store } = setupEnv()
-    store.clear()
-    mockRequestExpandedMode.mockClear()
-    vi.resetModules()
-    await import('../main')
-})
+const clickPlay = (): void => {
+    const button = document.querySelector('button')
+    expect(button).not.toBeNull()
+    button!.click()
+}
 
-describe('Preview screen DOM', () => {
-    it('renders the title "Sudoku"', () => {
-        const h1 = document.querySelector('h1')
-        expect(h1?.textContent).toBe('Sudoku')
+describe('Preview screen', () => {
+    it('renders the title and a single PLAY NOW button', async () => {
+        await renderPreview()
+
+        expect(document.querySelector('h1')?.textContent).toBe('Sudoku')
+        expect(document.querySelectorAll('button')).toHaveLength(1)
+        expect(document.querySelector('button')?.textContent).toContain('PLAY NOW')
     })
 
-    it('renders four buttons with correct labels (simple, easy, intermediate, expert)', () => {
-        const buttons = document.querySelectorAll('button')
-        expect(buttons).toHaveLength(4)
-        const labels = Array.from(buttons).map((b) => b.textContent)
-        expect(labels).toEqual(['Simple', 'Easy', 'Intermediate', 'Expert'])
-    })
-})
-
-// Property 3: Preview button click stores difficulty before requesting expanded mode
-// Validates: Requirements 2.5, 4.1
-describe('Property 3: Preview button click stores difficulty before requesting expanded mode', () => {
-    it('for each valid difficulty, click stores it in localStorage and calls requestExpandedMode(event, "game")', () => {
-        fc.assert(
-            fc.property(fc.constantFrom(...VALID_DIFFICULTIES), (difficulty) => {
-                localStorage.removeItem('sudoku-difficulty')
-                mockRequestExpandedMode.mockClear()
-
-                const buttons = Array.from(document.querySelectorAll('button'))
-                const btn = buttons.find((b) => b.textContent === DIFFICULTY_LABELS[difficulty])
-                expect(btn).toBeDefined()
-
-                btn!.click()
-
-                expect(localStorage.getItem('sudoku-difficulty')).toBe(difficulty)
-                expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
-                expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
-            })
-        )
-    })
-
-    it('still requests expanded mode when localStorage write throws', async () => {
-        mockRequestExpandedMode.mockClear()
-        vi.stubGlobal('localStorage', {
-            getItem: (): string | null => null,
-            setItem: (): void => {
-                throw new Error('storage unavailable')
-            },
-            removeItem: (): void => { },
-            clear: (): void => { },
+    it.each(VALID_DIFFICULTIES)('stores saved difficulty %s before requesting expanded mode', async (difficulty) => {
+        await renderPreview(difficulty)
+        localStorage.removeItem(DIFFICULTY_STORAGE_KEY)
+        mockRequestExpandedMode.mockImplementation(() => {
+            expect(localStorage.getItem(DIFFICULTY_STORAGE_KEY)).toBe(difficulty)
         })
 
-        vi.resetModules()
-        await import('../main')
+        clickPlay()
 
-        const firstButton = document.querySelector('button')
-        expect(firstButton).toBeDefined()
+        expect(mockRequestExpandedMode).toHaveBeenCalledExactlyOnceWith(expect.any(dom.window.MouseEvent), 'game')
+    })
 
-        firstButton!.click()
+    it.each([undefined, '', 'invalid'])('defaults to easy with saved value %s', async (savedDifficulty) => {
+        await renderPreview(savedDifficulty)
 
+        clickPlay()
+
+        expect(localStorage.getItem(DIFFICULTY_STORAGE_KEY)).toBe('easy')
         expect(mockRequestExpandedMode).toHaveBeenCalledOnce()
-        expect(mockRequestExpandedMode.mock.calls[0]?.[1]).toBe('game')
+    })
+
+    it('opens the game when the decorative grid is clicked', async () => {
+        await renderPreview('expert')
+        const grid = document.querySelector<HTMLElement>('.grid-wrapper')
+        expect(grid).not.toBeNull()
+
+        grid!.click()
+
+        expect(localStorage.getItem(DIFFICULTY_STORAGE_KEY)).toBe('expert')
+        expect(mockRequestExpandedMode).toHaveBeenCalledExactlyOnceWith(expect.any(dom.window.MouseEvent), 'game')
+    })
+
+    it('still requests expanded mode when localStorage reads and writes throw', async () => {
+        vi.stubGlobal('localStorage', {
+            getItem: (): never => { throw new Error('storage unavailable') },
+            setItem: (): never => { throw new Error('storage unavailable') },
+        })
+        await renderPreview()
+
+        clickPlay()
+
+        expect(mockRequestExpandedMode).toHaveBeenCalledExactlyOnceWith(expect.any(dom.window.MouseEvent), 'game')
     })
 })

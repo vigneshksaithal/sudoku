@@ -1,0 +1,10 @@
+{
+  "extends": "./src/client/tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "rootDir": "."
+  },
+  "references": [
+    { "path": "./src/shared" }
+  ]
+}
