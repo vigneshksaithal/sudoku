@@ -573,7 +573,73 @@ describe('recordSolve', () => {
             expect(result.globalRank).toBeGreaterThanOrEqual(1)
         }
     })
+    test('unranked solve does not overwrite the global row of a user with a ranked global score', async () => {
+        const difficulty = 'expert'
+        const userId = 't2_global_overwrite1'
+        await recordSolve({
+            redis, postId: 't3_global_overwrite_a', userId, username: 'rayne', difficulty,
+            completionTime: 300, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: false,
+        })
+        const result = await recordSolve({
+            redis, postId: 't3_global_overwrite_b', userId, username: 'rayne', difficulty,
+            completionTime: 900, hintsUsed: 2, mistakesCount: 4, notesUsed: true, unranked: true,
+        })
+        expect(result).toEqual({ postRank: null, globalRank: null, adjustedTime: 960 })
+
+        const global = await redis.hGetAll(`solve:global:${difficulty}:${userId}`)
+        expect(global['completionTime']).toBe('300')
+        expect(global['adjustedTime']).toBe('300')
+        expect(global['unranked']).toBe('false')
+        expect(await redis.zScore(`leaderboard:global:${difficulty}`, userId)).toBe(300)
+
+        // The post-level record still stores the unranked solve for that post
+        const post = await redis.hGetAll(`solve:t3_global_overwrite_b:${difficulty}:${userId}`)
+        expect(post['unranked']).toBe('true')
+        expect(post['completionTime']).toBe('900')
+    })
+
+    test('global leaderboard rows stay consistent with their ordering after unranked solves', async () => {
+        const difficulty = 'intermediate'
+        // fast: ranked 100s, then a slow unranked 500s solve on another post
+        await recordSolve({
+            redis, postId: 't3_global_order_a', userId: 't2_global_order_fast', username: 'fast', difficulty,
+            completionTime: 100, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: false,
+        })
+        await recordSolve({
+            redis, postId: 't3_global_order_b', userId: 't2_global_order_fast', username: 'fast', difficulty,
+            completionTime: 500, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: true,
+        })
+        await recordSolve({
+            redis, postId: 't3_global_order_a', userId: 't2_global_order_mid', username: 'mid', difficulty,
+            completionTime: 200, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: false,
+        })
+
+        const lb = await getLeaderboard({
+            redis,
+            key: `leaderboard:global:${difficulty}`,
+            solveKeyPrefix: `solve:global:${difficulty}`,
+        })
+        expect(lb.entries.map((e) => [e.username, e.adjustedTime])).toEqual([
+            ['fast', 100],
+            ['mid', 200],
+        ])
+        const scores = lb.entries.map((e) => e.adjustedTime)
+        expect([...scores].sort((a, b) => a - b)).toEqual(scores)
+    })
+
+    test('unranked solve still records the global hash when the user has no ranked global entry', async () => {
+        const difficulty = 'simple'
+        const userId = 't2_global_overwrite3'
+        await recordSolve({
+            redis, postId: 't3_global_overwrite_c', userId, username: 'newbie', difficulty,
+            completionTime: 400, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: true,
+        })
+        const global = await redis.hGetAll(`solve:global:${difficulty}:${userId}`)
+        expect(global['unranked']).toBe('true')
+        expect(global['completionTime']).toBe('400')
+    })
 })
+
 
 // ─── getLeaderboard ───────────────────────────────────────────────────────────
 

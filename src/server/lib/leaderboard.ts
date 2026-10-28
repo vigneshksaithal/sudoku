@@ -134,6 +134,14 @@ export const recordSolve = async (params: {
     })
 
     if (unranked) {
+        // The global hash backs the displayed row for a ranked member of
+        // leaderboard:global:{difficulty}. Only record an unranked solve there
+        // when the user has no ranked global entry; otherwise the row would show
+        // the unranked stats while being ordered by the older ranked score.
+        const existingGlobalRankedScore = await redis.zScore(`leaderboard:global:${difficulty}`, userId)
+        if (existingGlobalRankedScore !== undefined) {
+            return { postRank: null, globalRank: null, adjustedTime }
+        }
         const globalSolveKey = `solve:global:${difficulty}:${userId}`
         await redis.hSet(globalSolveKey, {
             username,
