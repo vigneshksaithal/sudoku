@@ -1,5 +1,6 @@
 import type { RedisClient } from '@devvit/redis'
 import { DIFFICULTIES } from './sudoku'
+import { isInvalidHistoricalRecord } from './leaderboard-cleanup'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ export const isValidDifficulty = (d: unknown): d is ValidDifficulty =>
 
 const isNonNegativeInteger = (value: unknown): value is number =>
     typeof value === 'number' &&
-    Number.isInteger(value) &&
+    Number.isSafeInteger(value) &&
     value >= 0
 
 /** Validate and parse a solve submission body. Returns parsed fields or an error string. */
@@ -50,6 +51,7 @@ export const validateSolveInput = (
     if (!isNonNegativeInteger(completionTime)) return 'Invalid completionTime: must be a non-negative integer'
     if (!isNonNegativeInteger(hintsUsed)) return 'Invalid hintsUsed: must be a non-negative integer'
     if (!isNonNegativeInteger(mistakesCount)) return 'Invalid mistakesCount: must be a non-negative integer'
+    if (!Number.isSafeInteger(completionTime + hintsUsed * 30)) return 'Invalid adjusted time: exceeds safe integer range'
     if (typeof notesUsed !== 'boolean') return 'Invalid notesUsed: must be a boolean'
 
     let resolvedUnranked: boolean
@@ -133,48 +135,20 @@ export const recordSolve = async (params: {
         unranked: String(unranked),
     })
 
-    if (unranked) {
-        // The global hash backs the displayed row for a ranked member of
-        // leaderboard:global:{difficulty}. Only record an unranked solve there
-        // when the user has no ranked global entry; otherwise the row would show
-        // the unranked stats while being ordered by the older ranked score.
-        const existingGlobalRankedScore = await redis.zScore(`leaderboard:global:${difficulty}`, userId)
-        if (existingGlobalRankedScore !== undefined) {
-            return { postRank: null, globalRank: null, adjustedTime }
-        }
-        const globalSolveKey = `solve:global:${difficulty}:${userId}`
-        await redis.hSet(globalSolveKey, {
-            username,
-            completionTime: String(completionTime),
-            hintsUsed: String(hintsUsed),
-            mistakesCount: String(mistakesCount),
-            adjustedTime: String(adjustedTime),
-            notesUsed: String(notesUsed),
-            unranked: String(unranked),
-        })
-        return { postRank: null, globalRank: null, adjustedTime }
+    const record = {
+        username,
+        completionTime: String(completionTime),
+        hintsUsed: String(hintsUsed),
+        mistakesCount: String(mistakesCount),
+        adjustedTime: String(adjustedTime),
+        notesUsed: String(notesUsed),
+        unranked: String(unranked),
     }
-
-    const postLeaderboardKey = `leaderboard:${postId}:${difficulty}`
-    await redis.zAdd(postLeaderboardKey, { member: userId, score: adjustedTime })
-
+    if (!unranked) await redis.zAdd(`leaderboard:${postId}:${difficulty}`, { member: userId, score: adjustedTime })
     const globalLeaderboardKey = `leaderboard:global:${difficulty}`
-    const existingGlobalScore = await redis.zScore(globalLeaderboardKey, userId)
-    const shouldUpdateGlobal = existingGlobalScore === undefined || adjustedTime < existingGlobalScore
-
-    if (shouldUpdateGlobal) {
-        await redis.zAdd(globalLeaderboardKey, { member: userId, score: adjustedTime })
-        const globalSolveKey = `solve:global:${difficulty}:${userId}`
-        await redis.hSet(globalSolveKey, {
-            username,
-            completionTime: String(completionTime),
-            hintsUsed: String(hintsUsed),
-            mistakesCount: String(mistakesCount),
-            adjustedTime: String(adjustedTime),
-            notesUsed: String(notesUsed),
-            unranked: String(unranked),
-        })
-    }
+    await updateGlobalRecord(redis, globalLeaderboardKey, `solve:global:${difficulty}:${userId}`, userId, adjustedTime, unranked, record)
+    if (unranked) return { postRank: null, globalRank: null, adjustedTime }
+    const postLeaderboardKey = `leaderboard:${postId}:${difficulty}`
 
     const postRankRaw = await redis.zRank(postLeaderboardKey, userId)
     const globalRankRaw = await redis.zRank(globalLeaderboardKey, userId)
@@ -183,6 +157,29 @@ export const recordSolve = async (params: {
     const globalRank = (globalRankRaw ?? 0) + 1
 
     return { postRank, globalRank, adjustedTime }
+}
+
+const updateGlobalRecord = async (
+    redis: RedisClient, leaderboardKey: string, solveKey: string, userId: string,
+    score: number, unranked: boolean, record: Record<string, string>
+): Promise<void> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const tx = await redis.watch(leaderboardKey, solveKey)
+        const existing = await redis.zScore(leaderboardKey, userId)
+        const oldRecord = existing !== undefined && !unranked ? await redis.hGetAll(solveKey) : null
+        const keepExisting = existing !== undefined && (unranked || (existing <= score && oldRecord !== null && !isInvalidHistoricalRecord(oldRecord, existing)))
+        if (keepExisting) {
+            await tx.multi()
+            await tx.discard()
+            return
+        }
+        await tx.multi()
+        if (!unranked) await tx.zAdd(leaderboardKey, { member: userId, score })
+        await tx.hSet(solveKey, record)
+        const result = await tx.exec()
+        if (result.length === (unranked ? 1 : 2)) return
+    }
+    throw new Error('Global leaderboard changed during score submission')
 }
 
 /** Fetch top-N leaderboard entries plus optional user entry if outside top N. */

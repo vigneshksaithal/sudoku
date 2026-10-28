@@ -1,7 +1,7 @@
 import { Header } from '@devvit/shared-types/Header.js'
 import { MOCK_HEADERS } from '@devvit/shared-types/test/index.js'
 import { createDevvitTest } from '@devvit/test/server/vitest'
-import { redis, reddit } from '@devvit/web/server'
+import { context, redis, reddit } from '@devvit/web/server'
 import { expect, vi } from 'vitest'
 
     // Inject postId into the test context
@@ -15,13 +15,15 @@ const SOLUTION = '1'.repeat(81)
 const seedPuzzle = async (difficulty: string): Promise<void> => {
     await redis.hSet(`puzzle:${POST_ID}`, {
         [`${difficulty}:solution`]: SOLUTION,
-        [`${difficulty}:puzzle`]: '0'.repeat(81),
+        [`${difficulty}:puzzle`]: '0'.repeat(40) + '1'.repeat(41),
     })
+    await redis.hSet(`solve-start:${POST_ID}:${difficulty}:${context.userId}`, { startedAt: String(Date.now() - 120000), pausedMs: '0' })
 }
 
 const solveBody = (overrides: Record<string, unknown> = {}): string =>
     JSON.stringify({
         difficulty: 'easy',
+        board: SOLUTION,
         completionTime: 120,
         hintsUsed: 1,
         mistakesCount: 2,

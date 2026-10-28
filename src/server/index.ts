@@ -19,9 +19,12 @@ import { validatePuzzle } from './lib/puzzle-validator'
 import { checkCooldown, setCooldown, addToSubmissionHistory, getSubmissionHistory, incrementSolveCount } from './lib/community-submit'
 import { createStickyComment } from './lib/sticky-comment'
 import { formatScoreComment } from './lib/score-comment'
+import { assessTiming, changeTimingPause, startTiming, timingKey } from './lib/solve-timing'
+import { cleanGlobalLeaderboardBatch, cleanPostLeaderboardBatch } from './lib/leaderboard-cleanup'
 
 const HTTP_STATUS_BAD_REQUEST = 400
 const HTTP_STATUS_UNAUTHORIZED = 401
+const HTTP_STATUS_FORBIDDEN = 403
 const HTTP_STATUS_INTERNAL_ERROR = 500
 
 type ValidDifficulty = (typeof DIFFICULTIES)[number]
@@ -52,6 +55,48 @@ const createPostHandler = async (c: Context): Promise<Response> => {
 
 app.post('/internal/on-app-install', createPostHandler)
 app.post('/internal/menu/post-create', createPostHandler)
+
+const CLEANUP_BATCH_SIZE = 25
+
+const cleanupLeaderboards = async (scope: string): Promise<string> => {
+  const progressKey = `leaderboard-cleanup:${scope}:progress`
+  const progress = await redis.hGetAll(progressKey)
+  const index = Number(progress['difficultyIndex'] ?? '0')
+  const offset = Number(progress['offset'] ?? '0')
+  const difficulty = DIFFICULTIES[index]
+  if (!difficulty || !Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid cleanup progress')
+  const result = scope === 'global'
+    ? await cleanGlobalLeaderboardBatch(redis, difficulty, offset, CLEANUP_BATCH_SIZE)
+    : await cleanPostLeaderboardBatch(redis, scope, difficulty, offset, CLEANUP_BATCH_SIZE)
+  if (result.complete && index === DIFFICULTIES.length - 1) {
+    await redis.del(progressKey)
+    return `Cleanup complete. Removed ${result.removed} entries in this batch.`
+  }
+  await redis.hSet(progressKey, {
+    difficultyIndex: String(result.complete ? index + 1 : index),
+    offset: String(result.complete ? 0 : result.nextOffset),
+  })
+  return `Removed ${result.removed} entries. Run cleanup again to continue.`
+}
+
+const cleanupResponse = async (c: Context, scope: string): Promise<Response> => {
+  try {
+    if (!context.userId || !context.subredditName) return c.json({ showToast: 'Moderator access required' }, HTTP_STATUS_FORBIDDEN)
+    const user = await reddit.getCurrentUser()
+    const permissions = user ? await user.getModPermissionsForSubreddit(context.subredditName) : []
+    if (permissions.length === 0) return c.json({ showToast: 'Moderator access required' }, HTTP_STATUS_FORBIDDEN)
+    return c.json({ showToast: await cleanupLeaderboards(scope) })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return c.json({ showToast: `Cleanup failed: ${message}` }, HTTP_STATUS_INTERNAL_ERROR)
+  }
+}
+
+app.post('/internal/menu/clean-leaderboards', (c) => cleanupResponse(c, 'global'))
+app.post('/internal/menu/clean-post-leaderboard', async (c) => {
+  if (!context.postId) return c.json({ showToast: 'Missing post' }, HTTP_STATUS_BAD_REQUEST)
+  return cleanupResponse(c, context.postId)
+})
 
 // --- GET /api/puzzle ---
 
@@ -265,6 +310,29 @@ app.get('/api/community/my-puzzles', async (c) => {
   }
 })
 
+// --- Solve timing ---
+
+app.post('/api/solve/:action', async (c) => {
+  const { userId, postId } = context
+  if (!userId || !postId) return c.json({ status: 'error', message: 'Missing user or post' }, HTTP_STATUS_BAD_REQUEST)
+  const action = c.req.param('action')
+  if (action !== 'start' && action !== 'pause' && action !== 'resume') {
+    return c.json({ status: 'error', message: 'Invalid timing action' }, HTTP_STATUS_BAD_REQUEST)
+  }
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
+  const difficulty = body?.['difficulty']
+  if (!isValidDifficulty(difficulty)) return c.json({ status: 'error', message: 'Invalid difficulty' }, HTTP_STATUS_BAD_REQUEST)
+  const key = timingKey(postId, difficulty, userId)
+  if (action === 'start') {
+    const puzzle = await redis.hGet(`puzzle:${postId}`, `${difficulty}:puzzle`)
+    if (!puzzle) return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
+    await startTiming(redis, key, Date.now())
+  } else if (!await changeTimingPause(redis, key, action, Date.now())) {
+    return c.json({ status: 'error', message: 'Invalid timer state' }, HTTP_STATUS_BAD_REQUEST)
+  }
+  return c.json({ status: 'success', data: {} })
+})
+
 // --- POST /api/solve ---
 
 app.post('/api/solve', async (c) => {
@@ -284,11 +352,27 @@ app.post('/api/solve', async (c) => {
     return c.json({ status: 'error', message: parsed }, HTTP_STATUS_BAD_REQUEST)
   }
 
-  const { difficulty, completionTime, hintsUsed, mistakesCount, notesUsed, unranked } = parsed
+  const { difficulty, hintsUsed, mistakesCount, notesUsed } = parsed
 
   const solution = await redis.hGet(`puzzle:${postId}`, `${difficulty}:solution`)
   if (!solution) {
     return c.json({ status: 'error', message: 'Solution not found' }, HTTP_STATUS_BAD_REQUEST)
+  }
+
+  const board = body?.['board']
+  if (typeof board !== 'string' || board !== solution) {
+    return c.json({ status: 'error', message: 'Invalid solved board' }, HTTP_STATUS_BAD_REQUEST)
+  }
+  const puzzle = await redis.hGet(`puzzle:${postId}`, `${difficulty}:puzzle`)
+  if (!puzzle || !/^[0-9]{81}$/.test(puzzle)) {
+    return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
+  }
+  const timing = await redis.hGetAll(timingKey(postId, difficulty, userId))
+  const assessment = assessTiming(timing, puzzle, parsed.completionTime, Date.now())
+  const unranked = parsed.unranked || assessment.unranked
+  const completionTime = unranked ? parsed.completionTime : assessment.completionTime
+  if (!Number.isSafeInteger(completionTime + hintsUsed * 30)) {
+    return c.json({ status: 'error', message: 'Invalid adjusted time' }, HTTP_STATUS_BAD_REQUEST)
   }
 
   const username = await reddit.getCurrentUsername()
@@ -306,7 +390,7 @@ app.post('/api/solve', async (c) => {
     await incrementSolveCount(redis, postId)
   }
 
-  return c.json({ status: 'success', data: result })
+  return c.json({ status: 'success', data: { ...result, completionTime, unranked } })
 })
 
 // --- GET /api/leaderboard/post ---

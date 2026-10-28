@@ -57,3 +57,11 @@ All direct Devvit packages use 0.15.0. Reviewed the
   scheduler improvements do not require changes to this app's existing flows.
 
 Run `bun run dev` for a Reddit playtest before uploading a release.
+
+### Cleaning historical leaderboards
+
+After publishing this version and updating the subreddit installation, a moderator can run **Clean global leaderboard** from the subreddit menu. Repeat it until the toast says cleanup is complete; each invocation processes at most 25 entries in one difficulty. Use **Clean post leaderboard** from an individual app post's menu to do the same for that post. Run the cleanup when leaderboard activity is low and repeat a full pass if scores changed during a pass, since the scan uses rank-based pagination.
+
+The cleanup removes entries when the recorded completion time is under 10 seconds, the record is malformed, the record is unranked, or its adjusted time differs from the leaderboard score. It deletes the backing global solve records, while retaining post solve records as unranked to preserve solve-count and duplicate tracking. Other entries are preserved; a deleted historical best cannot be recovered from the affected record. Global records do not identify their original puzzle, so the historical threshold is deliberately conservative and cannot detect every implausible score. Old post boards must be cleaned individually.
+
+New ranked solves require the correct board and a server timer. Their minimum time is two seconds per empty cell, with a minimum of 10 seconds; missing or inconsistent timing and faster solves are recorded as unranked. Pauses are tracked by the server. These checks deter trivial submissions, but cannot prove a human solved the puzzle: the client receives solutions to support hints, and a caller can wait before submitting one.

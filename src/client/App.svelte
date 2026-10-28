@@ -93,9 +93,11 @@
 	let mistakesCount: number = $state(0);
 	let notesUsed: boolean = $state(false);
 	let solveResult: {
-		postRank: number;
-		globalRank: number;
+		postRank: number | null;
+		globalRank: number | null;
 		adjustedTime: number;
+		completionTime: number;
+		unranked: boolean;
 	} | null = $state(null);
 	let solveError: string | null = $state(null);
 	let scoreCommentState: "idle" | "posting" | "success" | "error" =
@@ -151,6 +153,24 @@
 		pauseState = reduce(pauseState, event);
 	};
 
+	let timingRequests: Promise<boolean> = Promise.resolve(true);
+	let roundId = 0;
+
+	const queueTimingAction = (action: "start" | "pause" | "resume", target: Difficulty): void => {
+		timingRequests = timingRequests.then(async (previous) => {
+			try {
+				const response = await fetch(`/api/solve/${action}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ difficulty: target }),
+				});
+				return (action === "start" || previous) && response.ok;
+			} catch {
+				return false;
+			}
+		});
+	};
+
 	const resetRoundState = (): void => {
 		selection = EMPTY_SELECTION;
 		highlightDigit = null;
@@ -179,8 +199,10 @@
 
 	const loadDifficultyBoard = (targetDifficulty: Difficulty): void => {
 		if (puzzles === null) return;
+		roundId++;
 		board = updateConflicts(parseBoard(puzzles[targetDifficulty]));
 		resetRoundState();
+		queueTimingAction("start", targetDifficulty);
 	};
 
 	const fetchPuzzles = async (): Promise<void> => {
@@ -234,6 +256,7 @@
 
 	const handlePause = (): void => {
 		if (screen !== "playing" || isPaused) return;
+		queueTimingAction("pause", difficulty);
 		dispatchPauseEvent("PAUSE_PRESSED");
 		if (timerInterval !== null) {
 			clearInterval(timerInterval);
@@ -243,6 +266,7 @@
 
 	const handleResume = (): void => {
 		if (!isPaused) return;
+		queueTimingAction("resume", difficulty);
 		dispatchPauseEvent("RESUME");
 		tickTimer();
 		pauseButtonEl?.focus();
@@ -250,6 +274,7 @@
 
 	const handleRestartPuzzle = (): void => {
 		if (puzzles === null) return;
+		roundId++;
 		// Re-parse the original puzzle string — gives back a clean board with only givens
 		board = updateConflicts(parseBoard(puzzles[difficulty]));
 		// Reset all mutable game state (mirrors resetRoundState minus the timer zero)
@@ -266,6 +291,7 @@
 		lockedDigit = null;
 		digitFirstMode = false;
 		// elapsedSeconds intentionally NOT touched — timer keeps running
+		if (isPaused) queueTimingAction("resume", difficulty);
 		dispatchPauseEvent("RESET_ROUND"); // clears isPaused + unrankedDueToBackground
 		tickTimer(); // resume ticking (was stopped while paused)
 	};
@@ -604,6 +630,9 @@
 
 	const checkCompletion = async (): Promise<void> => {
 		if (!isComplete(board)) return;
+		const submittedRound = roundId;
+		const solvedBoard = boardToString(board);
+		const solvedDifficulty = difficulty;
 		validating = true;
 		validationMessage = null;
 		try {
@@ -611,36 +640,40 @@
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					board: boardToString(board),
-					difficulty,
+					board: solvedBoard,
+					difficulty: solvedDifficulty,
 				}),
 			});
 			const json = await res.json();
+			if (submittedRound !== roundId) return;
 			if (json.valid) {
 				if (timerInterval) clearInterval(timerInterval);
 				screen = "completed";
 				// Submit solve in the background — completion screen shows regardless
+				const submission = {
+					difficulty: solvedDifficulty, board: solvedBoard, completionTime: elapsedSeconds,
+					hintsUsed, mistakesCount, notesUsed, unranked: unrankedDueToBackground,
+				};
+				const pendingTiming = timingRequests;
 				try {
+					const timingReliable = await pendingTiming;
+					if (submittedRound !== roundId) return;
 					const solveRes = await fetch("/api/solve", {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							difficulty,
-							completionTime: elapsedSeconds,
-							hintsUsed,
-							mistakesCount,
-							notesUsed,
-							unranked: unrankedDueToBackground,
-						}),
+						body: JSON.stringify({ ...submission, unranked: submission.unranked || !timingReliable }),
 					});
 					const solveJson = await solveRes.json();
+					if (submittedRound !== roundId) return;
 					if (!solveRes.ok || solveJson.status === "error") {
 						solveError =
 							solveJson.message ?? "Failed to record solve.";
 					} else {
 						solveResult = solveJson.data;
+						elapsedSeconds = solveJson.data.completionTime;
 					}
 				} catch {
+					if (submittedRound !== roundId) return;
 					solveError =
 						"Could not submit solve. Check your connection.";
 				}
@@ -648,6 +681,7 @@
 				validationMessage = "Not quite right — check your solution.";
 			}
 		} catch {
+			if (submittedRound !== roundId) return;
 			validationMessage = "Could not validate. Try again.";
 		} finally {
 			validating = false;
@@ -702,7 +736,7 @@
 					hintsUsed,
 					mistakesCount,
 					notesUsed,
-					unranked: unrankedDueToBackground,
+					unranked: solveResult?.unranked ?? true,
 				}),
 			});
 			const json = await res.json();
@@ -1056,7 +1090,7 @@
 				<button
 					class="min-h-11 shrink-0 rounded-lg bg-neutral-100 px-5 py-2.5 font-semibold text-neutral-700 transition-all hover:bg-neutral-200 active:bg-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
 					onclick={handleScoreComment}
-					disabled={scoreCommentState === "posting"}
+					disabled={scoreCommentState === "posting" || solveResult === null}
 				>
 					{scoreCommentState === "posting"
 						? "Posting…"

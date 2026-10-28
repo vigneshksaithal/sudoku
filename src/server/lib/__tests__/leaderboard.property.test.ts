@@ -104,7 +104,7 @@ test('Property 3: Global leaderboard minimum', async () => {
             arbUsername,
             arbDifficulty,
             fc.array(
-                fc.record({ completionTime: arbNonNegInt, hintsUsed: arbNonNegInt }),
+                fc.record({ completionTime: fc.integer({ min: 10, max: 10_000 }), hintsUsed: arbNonNegInt }),
                 { minLength: 1, maxLength: 8 }
             ),
             async (userId, username, difficulty, solves) => {
@@ -112,6 +112,7 @@ test('Property 3: Global leaderboard minimum', async () => {
                 // avoiding duplicate rejection when fast-check generates the same userId
                 // across multiple iterations.
                 const runBase = runCounter
+                const uniqueUserId = `${userId}_${runBase}`
                 runCounter += solves.length
                 const adjustedTimes: number[] = []
                 for (let i = 0; i < solves.length; i++) {
@@ -120,7 +121,7 @@ test('Property 3: Global leaderboard minimum', async () => {
                     await recordSolve({
                         redis,
                         postId,
-                        userId,
+                        userId: uniqueUserId,
                         username,
                         difficulty,
                         completionTime: solve.completionTime,
@@ -132,7 +133,7 @@ test('Property 3: Global leaderboard minimum', async () => {
                 }
 
                 const expectedMin = Math.min(...adjustedTimes)
-                const globalScore = await redis.zScore(`leaderboard:global:${difficulty}`, userId)
+                const globalScore = await redis.zScore(`leaderboard:global:${difficulty}`, uniqueUserId)
                 expect(globalScore).toBe(expectedMin)
             }
         ),
