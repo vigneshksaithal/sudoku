@@ -25,6 +25,21 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
+      },
+      {
+        "label": "Clean global leaderboard",
+        "description": "Remove invalid historical leaderboard entries",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/clean-leaderboards"
+      },
+      {
+        "label": "Clean post leaderboard",
+        "description": "Remove invalid historical leaderboard entries for this post",
+        "location": "post",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/clean-post-leaderboard",
+        "postFilter": "currentApp"
       }
     ]
   },

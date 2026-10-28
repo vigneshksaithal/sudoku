@@ -27,8 +27,8 @@
         currentUsername?: string;
         mode: "panel" | "completion";
         solveResult?: {
-            postRank: number;
-            globalRank: number;
+            postRank: number | null;
+            globalRank: number | null;
             adjustedTime: number;
         } | null;
     } = $props();
@@ -106,7 +106,7 @@
                     <span
                         class="font-semibold text-neutral-900 dark:text-neutral-100"
                     >
-                        #{solveResult.postRank} on this post
+                        {solveResult.postRank === null ? "Unranked" : `#${solveResult.postRank} on this post`}
                     </span>
                     <span class="text-neutral-500 dark:text-neutral-400"
                         >Score</span
