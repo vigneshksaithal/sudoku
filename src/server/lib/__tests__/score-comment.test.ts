@@ -7,7 +7,15 @@ import { formatScoreComment } from '../score-comment'
 describe('formatScoreComment', () => {
     it('includes the difficulty name', () => {
         const result = formatScoreComment({ difficulty: 'expert', completionTime: 120, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: false })
-        expect(result).toContain('expert')
+        expect(result).toContain('**Expert**')
+    })
+
+    it('shows display names for each level', () => {
+        const names = { simple: 'Simple', easy: 'Easy', intermediate: 'Hard', advanced: 'Advanced' }
+        for (const [difficulty, label] of Object.entries(names)) {
+            const result = formatScoreComment({ difficulty, completionTime: 61, hintsUsed: 0, mistakesCount: 0, notesUsed: false, unranked: false })
+            expect(result).toContain(`🎯 **${label}** — Solved in **1:01**`)
+        }
     })
 
     it('includes the formatted time in m:ss', () => {

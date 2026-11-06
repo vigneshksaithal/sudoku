@@ -29,6 +29,35 @@ export const detectIncorrectEntry = (
     return null
 }
 
+/** First empty cell whose candidates (player notes, if any) no longer include its
+ *  solution digit. Hints are only sound while every cell keeps its correct digit. */
+export const detectIncorrectNote = (
+    board: CellState[][],
+    candidates: CandidateBoard,
+    solution: number[]
+): TechniqueHint | null => {
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (board[r]?.[c]?.value !== 0) continue
+            const cellCandidates = candidates[r]?.[c]
+            const solutionDigit = solution[r * 9 + c]
+            if (!cellCandidates || cellCandidates.size === 0 || solutionDigit === undefined) continue
+            if (cellCandidates.has(solutionDigit)) continue
+            return {
+                technique: 'incorrect-note',
+                difficulty: 'assist',
+                title: `Check notes in ${cellName(r, c)}`,
+                description: `The notes in ${cellName(r, c)} are missing a digit that belongs there. Apply to restore every possible digit in that cell.`,
+                primaryCells: [[r, c]],
+                secondaryCells: [],
+                action: 'restore-notes',
+                digit: 0,
+            }
+        }
+    }
+    return null
+}
+
 /** Offer to reveal one correct digit when no explainable technique is available.
  *  Picks the empty cell with the fewest candidates (first by position on ties). */
 export const buildRevealHint = (

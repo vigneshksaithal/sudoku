@@ -1,22 +1,16 @@
 import { SvelteSet } from 'svelte/reactivity'
 import { describe, expect, it } from 'vitest'
-import { applyHintEliminations } from '../../app-logic'
+import { applyHintEliminations, restoreCellCandidates } from '../../app-logic'
 import { updateConflicts } from '../../sudoku-utils'
 import type { CellState, NotesBoard, TechniqueHint } from '../../types'
 import { buildCandidateBoard } from '../candidate-board'
 import { findTechniqueHint } from '../technique-engine'
+import { ADVANCED_FIXTURES, EXPERT_FIXTURES } from '../../../../shared/test-fixtures/generated-puzzles'
 
-// Puzzles produced by the server generator. The first needs locked candidates
-// (an elimination hint) and the second currently needs a guess in the server solver.
-const PUZZLES = {
-    intermediate: {
-        puzzle: '000906500300004090020000006804002000000040000000700103700000020060300007005609000',
-        solution: '148936572376254891529817436834162759917543268652798143793481625461325987285679314',
-    },
-    expert: {
-        puzzle: '007020050000800900050004007040000108380010062701000040500900080002007000090080600',
-        solution: '917623854423875916658194327249756138385419762761238549576941283832567491194382675',
-    },
+// Locked-candidates puzzle from the server generator (Hard level)
+const HARD = {
+    puzzle: '000906500300004090020000006804002000000040000000700103700000020060300007005609000',
+    solution: '148936572376254891529817436834162759917543268652798143793481625461325987285679314',
 }
 
 const toBoard = (puzzle: string): CellState[][] =>
@@ -43,6 +37,8 @@ const applyHint = (board: CellState[][], notes: NotesBoard, hint: TechniqueHint)
         const br = Math.floor(row / 3) * 3
         const bc = Math.floor(col / 3) * 3
         for (let r = br; r < br + 3; r++) for (let c = bc; c < bc + 3; c++) notes[r]![c]!.delete(hint.digit)
+    } else if (hint.action === 'restore-notes') {
+        restoreCellCandidates(board, notes, row, col)
     } else if (hint.action === 'clear') {
         board[row]![col] = { ...board[row]![col]!, value: 0 }
     } else {
@@ -79,26 +75,59 @@ const playWithHintsOnly = (puzzle: string, solutionStr: string) => {
     return { board, techniques: used.map((k) => JSON.parse(k)[0] as string) }
 }
 
+const ADVANCED_HINTS = ['x-wing', 'skyscraper', 'two-string-kite', 'xy-wing', 'w-wing']
+const SERVER_TO_CLIENT: Record<string, string> = {
+    xWing: 'x-wing', skyscraper: 'skyscraper', twoStringKite: 'two-string-kite', xyWing: 'xy-wing', wWing: 'w-wing',
+}
+
 describe('hint-only play', () => {
     it('solves a locked-candidates puzzle without repeating an elimination hint', () => {
-        const { board, techniques } = playWithHintsOnly(PUZZLES.intermediate.puzzle, PUZZLES.intermediate.solution)
-        expect(board.flat().map((c) => c.value).join('')).toBe(PUZZLES.intermediate.solution)
+        const { board, techniques } = playWithHintsOnly(HARD.puzzle, HARD.solution)
+        expect(board.flat().map((c) => c.value).join('')).toBe(HARD.solution)
         expect(techniques.some((t) => ['naked-pair', 'hidden-pair', 'pointing-pair', 'box-line-reduction'].includes(t))).toBe(true)
         expect(techniques).not.toContain('reveal')
     })
 
-    it('always responds on a puzzle beyond the explained techniques, falling back to reveals', () => {
-        const { board, techniques } = playWithHintsOnly(PUZZLES.expert.puzzle, PUZZLES.expert.solution)
-        expect(board.flat().map((c) => c.value).join('')).toBe(PUZZLES.expert.solution)
-        expect(techniques).toContain('reveal')
-    })
+    it.each(ADVANCED_FIXTURES.map((f, i) => [i, f] as const))(
+        'explains every step of Advanced fixture %i without a reveal',
+        (_, fixture) => {
+            const { board, techniques } = playWithHintsOnly(fixture.puzzle, fixture.solution)
+            expect(board.flat().map((c) => c.value).join('')).toBe(fixture.solution)
+            expect(techniques).not.toContain('reveal')
+            expect(techniques.some((t) => ADVANCED_HINTS.includes(t))).toBe(true)
+            // The client explains at least one of the techniques the server graded with
+            const graded = fixture.techniques.map((t) => SERVER_TO_CLIENT[t])
+            expect(techniques.some((t) => graded.includes(t))).toBe(true)
+        },
+    )
+
+    it.each(EXPERT_FIXTURES.map((f, i) => [i, f] as const))(
+        'always responds on Expert fixture %i, falling back to reveals',
+        (_, fixture) => {
+            const { board, techniques } = playWithHintsOnly(fixture.puzzle, fixture.solution)
+            expect(board.flat().map((c) => c.value).join('')).toBe(fixture.solution)
+            expect(techniques).toContain('reveal')
+        },
+    )
 
     it('clears an incorrect entry before offering further hints', () => {
-        const solution = Array.from(PUZZLES.intermediate.solution, Number)
-        const board = toBoard(PUZZLES.intermediate.puzzle)
+        const solution = Array.from(HARD.solution, Number)
+        const board = toBoard(HARD.puzzle)
         const wrong = solution[0] === 9 ? 8 : 9
         board[0]![0] = { value: wrong, isGiven: false, hasConflict: false }
         const hint = findTechniqueHint(updateConflicts(board), buildCandidateBoard(board), solution)
         expect(hint).toMatchObject({ technique: 'incorrect-entry', action: 'clear', primaryCells: [[0, 0]] })
+    })
+
+    it('restores notes that have lost the correct digit before giving technique hints', () => {
+        const solution = Array.from(HARD.solution, Number)
+        const board = toBoard(HARD.puzzle)
+        const notes = emptyNotes()
+        const target = board.flat().findIndex((c) => c.value === 0)
+        const [r, c] = [Math.floor(target / 9), target % 9]
+        const candidates = buildCandidateBoard(board)[r]![c]!
+        for (const d of candidates) if (d !== solution[target]) notes[r]![c]!.add(d)
+        const hint = findTechniqueHint(board, buildCandidateBoard(board, notes), solution)
+        expect(hint).toMatchObject({ technique: 'incorrect-note', action: 'restore-notes', primaryCells: [[r, c]] })
     })
 })

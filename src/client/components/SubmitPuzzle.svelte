@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
+    import { difficultyLabel } from "../lib/constants";
     import type {
         Difficulty,
         SubmitScreenState,
@@ -34,15 +35,17 @@
         return rows;
     });
 
-    const difficultyLabel = (d: Difficulty): string => {
+    const difficultyBadgeClass = (d: Difficulty): string => {
         const map: Record<Difficulty, string> = {
             simple: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
             easy: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
             intermediate:
                 "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+            advanced:
+                "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
             expert: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
         };
-        return map[d];
+        return map[d] ?? map.expert;
     };
 
     const formatDate = (ts: number): string =>
@@ -195,11 +198,11 @@
                     <div class="flex items-center gap-2">
                         {#if previewDifficulty !== null}
                             <span
-                                class="rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize {difficultyLabel(
+                                class="rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize {difficultyBadgeClass(
                                     previewDifficulty,
                                 )}"
                             >
-                                {previewDifficulty}
+                                {difficultyLabel(previewDifficulty)}
                             </span>
                         {/if}
                         <span
@@ -353,11 +356,11 @@
                             >
                                 <div class="flex items-center gap-2">
                                     <span
-                                        class="rounded-full px-2 py-0.5 text-xs font-semibold capitalize {difficultyLabel(
+                                        class="rounded-full px-2 py-0.5 text-xs font-semibold capitalize {difficultyBadgeClass(
                                             entry.difficulty,
                                         )}"
                                     >
-                                        {entry.difficulty}
+                                        {difficultyLabel(entry.difficulty)}
                                     </span>
                                     <span
                                         class="text-xs text-neutral-400 dark:text-neutral-500"

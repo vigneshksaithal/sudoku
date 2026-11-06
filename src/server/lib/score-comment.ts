@@ -1,3 +1,4 @@
+import { difficultyLabel } from './sudoku'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ScoreCommentData = {
@@ -29,7 +30,8 @@ export const formatScoreComment = (data: ScoreCommentData): string => {
     const formattedTime = formatTime(completionTime)
     const isPerfect = hintsUsed === 0 && mistakesCount === 0
 
-    const header = `🎯 **${difficulty}** — Solved in **${formattedTime}**`
+    const label = difficultyLabel(difficulty)
+    const header = `🎯 **${label}** — Solved in **${formattedTime}**`
 
     const rows = [
         `| Stat | Value |`,

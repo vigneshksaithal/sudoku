@@ -20,8 +20,17 @@
     onDismiss: () => void;
   } = $props();
 
+  // Badge names match the puzzle level that introduces each technique.
+  const BADGE_LABELS: Record<string, string> = {
+    easy: "Easy",
+    medium: "Hard",
+    hard: "Advanced",
+    assist: "Assist",
+  };
+
   const difficultyLabel = $derived(
-    hint.difficulty.charAt(0).toUpperCase() + hint.difficulty.slice(1),
+    BADGE_LABELS[hint.difficulty] ??
+      hint.difficulty.charAt(0).toUpperCase() + hint.difficulty.slice(1),
   );
 
   const badgeClass = $derived(
@@ -34,7 +43,9 @@
       ? `Place ${hint.digit}`
       : hint.action === "clear"
         ? `Clear ${hint.digit}`
-        : "Remove candidates",
+        : hint.action === "restore-notes"
+          ? "Restore notes"
+          : "Remove candidates",
   );
 </script>
 

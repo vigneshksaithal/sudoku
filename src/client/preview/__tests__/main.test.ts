@@ -73,13 +73,13 @@ describe('Preview screen', () => {
     })
 
     it('opens the game when the decorative grid is clicked', async () => {
-        await renderPreview('expert')
+        await renderPreview('advanced')
         const grid = document.querySelector<HTMLElement>('.grid-wrapper')
         expect(grid).not.toBeNull()
 
         grid!.click()
 
-        expect(localStorage.getItem(DIFFICULTY_STORAGE_KEY)).toBe('expert')
+        expect(localStorage.getItem(DIFFICULTY_STORAGE_KEY)).toBe('advanced')
         expect(mockRequestExpandedMode).toHaveBeenCalledExactlyOnceWith(expect.any(dom.window.MouseEvent), 'game')
     })
 

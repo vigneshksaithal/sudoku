@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 
 import { createPost } from './post'
 import { formatPostDate } from './post'
-import { DIFFICULTIES } from './lib/sudoku'
+import { ALL_DIFFICULTIES, DIFFICULTY_LABELS } from './lib/sudoku'
 import { buildLeaderboardCacheKey, getLeaderboard, recordSolve, validateSolveInput } from './lib/leaderboard'
 import { validatePuzzle } from './lib/puzzle-validator'
 import { checkCooldown, setCooldown, addToSubmissionHistory, getSubmissionHistory, incrementSolveCount } from './lib/community-submit'
@@ -27,10 +27,10 @@ const HTTP_STATUS_UNAUTHORIZED = 401
 const HTTP_STATUS_FORBIDDEN = 403
 const HTTP_STATUS_INTERNAL_ERROR = 500
 
-type ValidDifficulty = (typeof DIFFICULTIES)[number]
+type ValidDifficulty = (typeof ALL_DIFFICULTIES)[number]
 
 const isValidDifficulty = (d: unknown): d is ValidDifficulty =>
-  typeof d === 'string' && (DIFFICULTIES as readonly string[]).includes(d)
+  typeof d === 'string' && (ALL_DIFFICULTIES as readonly string[]).includes(d)
 
 export const app = new Hono()
 
@@ -63,12 +63,12 @@ const cleanupLeaderboards = async (scope: string): Promise<string> => {
   const progress = await redis.hGetAll(progressKey)
   const index = Number(progress['difficultyIndex'] ?? '0')
   const offset = Number(progress['offset'] ?? '0')
-  const difficulty = DIFFICULTIES[index]
+  const difficulty = ALL_DIFFICULTIES[index]
   if (!difficulty || !Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid cleanup progress')
   const result = scope === 'global'
     ? await cleanGlobalLeaderboardBatch(redis, difficulty, offset, CLEANUP_BATCH_SIZE)
     : await cleanPostLeaderboardBatch(redis, scope, difficulty, offset, CLEANUP_BATCH_SIZE)
-  if (result.complete && index === DIFFICULTIES.length - 1) {
+  if (result.complete && index === ALL_DIFFICULTIES.length - 1) {
     await redis.del(progressKey)
     return `Cleanup complete. Removed ${result.removed} entries in this batch.`
   }
@@ -119,7 +119,9 @@ const buildCommunityPuzzleResponse = (data: Record<string, string>): Record<stri
 const buildGeneratedPuzzleResponse = (data: Record<string, string>): Record<string, unknown> | null => {
   const puzzles: Record<string, string> = {}
   const solutions: Record<string, string> = {}
-  for (const d of DIFFICULTIES) {
+  // Posts made before Advanced replaced Expert store an 'expert' puzzle instead.
+  const hardest = data['advanced:puzzle'] ? 'advanced' : 'expert'
+  for (const d of ['simple', 'easy', 'intermediate', hardest] as const) {
     const puzzle = data[`${d}:puzzle`]
     if (!puzzle) return null
     puzzles[d] = puzzle
@@ -254,7 +256,7 @@ app.post('/api/community/submit', async (c) => {
 
   const post = await reddit.submitCustomPost({
     subredditName: context.subredditName!,
-    title: `Sudoku #${formatPostDate(new Date())} by u/${username} (${difficulty})`,
+    title: `Sudoku #${formatPostDate(new Date())} by u/${username} (${DIFFICULTY_LABELS[difficulty]})`,
     entry: 'default',
     runAs: 'USER',
     userGeneratedContent: { text: puzzle },
@@ -286,7 +288,7 @@ app.post('/api/community/submit', async (c) => {
 
   await reddit.submitComment({
     id: postId,
-    text: `🧩 Community puzzle submitted by u/${username}! Difficulty: ${difficulty}. Think you can solve it?`,
+    text: `🧩 Community puzzle submitted by u/${username}! Difficulty: ${DIFFICULTY_LABELS[difficulty]}. Think you can solve it?`,
   })
 
   const postUrl = `https://reddit.com/r/${context.subredditName}/comments/${postId}`

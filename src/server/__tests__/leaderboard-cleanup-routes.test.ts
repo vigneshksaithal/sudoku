@@ -10,7 +10,8 @@ test('moderator cleanup traverses the global boards and removes invalid entries'
     vi.spyOn(reddit, 'getCurrentUser').mockResolvedValue({ getModPermissionsForSubreddit: async () => ['all'] } as never)
     await redis.zAdd('leaderboard:global:simple', { member: 'bad', score: 4 })
     await redis.hSet('solve:global:simple:bad', { completionTime: '4', adjustedTime: '4' })
-    for (let i = 0; i < 4; i++) {
+    // One batch per stored difficulty, including legacy Expert boards
+    for (let i = 0; i < 5; i++) {
         const res = await app.request('/internal/menu/clean-leaderboards', { method: 'POST' })
         expect(res.status).toBe(200)
     }

@@ -30,14 +30,17 @@
 		hasAutoCandidates,
 		clearAutoCandidates,
 		applyHintEliminations,
+		restoreCellCandidates,
 		placeLockedDigit,
 		batchPlaceDigit,
 		isMistake,
 	} from "./lib/app-logic";
 	import {
 		DIFFICULTY_STORAGE_KEY,
-		VALID_DIFFICULTIES,
+		difficultiesForPuzzles,
+		difficultyLabel,
 		getNextDifficulty,
+		resolveDifficulty,
 	} from "./lib/constants";
 	import {
 		initialPauseState,
@@ -230,6 +233,10 @@
 				puzzleType = "generated";
 				creatorUsername = null;
 				solveCount = null;
+				difficulty = resolveDifficulty(
+					difficulty,
+					difficultiesForPuzzles(json.data.puzzles ?? null),
+				);
 			}
 			if (puzzles) {
 				loadDifficultyBoard(difficulty);
@@ -708,6 +715,9 @@
 			};
 			clearCellNotes(notesBoard, row, col);
 			cleanupNotes(notesBoard, row, col, activeHint.digit);
+		} else if (activeHint.action === "restore-notes") {
+			const [row, col] = activeHint.primaryCells[0]!;
+			restoreCellCandidates(board, notesBoard, row, col);
 		} else if (activeHint.action === "clear") {
 			const [row, col] = activeHint.primaryCells[0]!;
 			const cell = board[row]?.[col];
@@ -795,7 +805,10 @@
 		return `${m}:${sec.toString().padStart(2, "0")}`;
 	};
 
-	const nextDifficulty = $derived(getNextDifficulty(difficulty));
+	const availableDifficulties = $derived(difficultiesForPuzzles(puzzles));
+	const nextDifficulty = $derived(
+		getNextDifficulty(difficulty, availableDifficulties),
+	);
 
 	// Space left for the grid after the header and controls are laid out.
 	let gridFitWidth = $state(0);
@@ -841,10 +854,10 @@
 						<span
 							class="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium capitalize text-white sm:px-4 sm:py-1.5 sm:text-sm"
 						>
-							{difficulty}
+							{difficultyLabel(difficulty)}
 						</span>
 					{:else}
-						{#each VALID_DIFFICULTIES as d (d)}
+						{#each availableDifficulties as d (d)}
 							<button
 								class="rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 sm:px-4 sm:py-1.5 sm:text-sm
 									{d === difficulty
@@ -852,7 +865,7 @@
 									: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
 								onclick={() => changeDifficulty(d)}
 							>
-								{d}
+								{difficultyLabel(d)}
 							</button>
 						{/each}
 					{/if}
@@ -1080,7 +1093,7 @@
 				class="min-h-11 shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white transition-all hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
 				onclick={() => changeDifficulty(nextDifficulty)}
 			>
-				Try {nextDifficulty}
+				Try {difficultyLabel(nextDifficulty)}
 			</button>
 			{#if scoreCommentState === "success"}
 				<p

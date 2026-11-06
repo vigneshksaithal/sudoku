@@ -200,3 +200,16 @@ export const applyHintEliminations = (
         for (const digit of digits) cellNotes.delete(digit)
     }
 }
+
+/** Replace one cell's notes with every digit still legal there. Mutates `notesBoard`. */
+export const restoreCellCandidates = (
+    board: CellState[][],
+    notesBoard: NotesBoard,
+    row: number,
+    col: number,
+): void => {
+    const cellNotes = notesBoard[row]?.[col]
+    if (!cellNotes || board[row]?.[col]?.value !== 0) return
+    cellNotes.clear()
+    for (const digit of buildCandidateBoard(board)[row]![col]!) cellNotes.add(digit)
+}
