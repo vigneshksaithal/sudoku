@@ -6,6 +6,8 @@
     medium:
       "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
     hard: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+    assist:
+      "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
   };
 
   let {
@@ -18,8 +20,17 @@
     onDismiss: () => void;
   } = $props();
 
+  // Badge names match the puzzle level that introduces each technique.
+  const BADGE_LABELS: Record<string, string> = {
+    easy: "Easy",
+    medium: "Hard",
+    hard: "Advanced",
+    assist: "Assist",
+  };
+
   const difficultyLabel = $derived(
-    hint.difficulty.charAt(0).toUpperCase() + hint.difficulty.slice(1),
+    BADGE_LABELS[hint.difficulty] ??
+      hint.difficulty.charAt(0).toUpperCase() + hint.difficulty.slice(1),
   );
 
   const badgeClass = $derived(
@@ -28,7 +39,13 @@
   );
 
   const actionLabel = $derived(
-    hint.action === "placement" ? `Place ${hint.digit}` : "Remove candidates",
+    hint.action === "placement"
+      ? `Place ${hint.digit}`
+      : hint.action === "clear"
+        ? `Clear ${hint.digit}`
+        : hint.action === "restore-notes"
+          ? "Restore notes"
+          : "Remove candidates",
   );
 </script>
 

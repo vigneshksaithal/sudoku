@@ -9,7 +9,7 @@ const PINNED_POST_KEY = 'pinnedPostId'
 
 const test = createDevvitTest()
 
-const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
+const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'advanced'] as const
 
 test('createPost generates 4 puzzles, stores in Redis, and submits post', async ({ subredditName }) => {
     vi.spyOn(reddit, 'submitCustomPost').mockResolvedValue({ id: 't3_abc123' } as never)

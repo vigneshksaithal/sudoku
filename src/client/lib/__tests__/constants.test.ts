@@ -3,8 +3,11 @@ import * as fc from 'fast-check'
 import {
     DIFFICULTY_STORAGE_KEY,
     VALID_DIFFICULTIES,
+    difficultiesForPuzzles,
+    difficultyLabel,
     getNextDifficulty,
     parseDifficulty,
+    resolveDifficulty,
 } from '../constants'
 import type { Difficulty } from '../types'
 
@@ -15,17 +18,21 @@ describe('DIFFICULTY_STORAGE_KEY', () => {
 })
 
 describe('VALID_DIFFICULTIES', () => {
-    it('contains exactly the four valid difficulties', () => {
-        expect(VALID_DIFFICULTIES).toEqual(['simple', 'easy', 'intermediate', 'expert'])
+    it('contains exactly the four daily difficulties', () => {
+        expect(VALID_DIFFICULTIES).toEqual(['simple', 'easy', 'intermediate', 'advanced'])
     })
 })
 
 describe('parseDifficulty', () => {
     it('returns each valid difficulty unchanged', () => {
-        const valid: Difficulty[] = ['simple', 'easy', 'intermediate', 'expert']
+        const valid: Difficulty[] = ['simple', 'easy', 'intermediate', 'advanced']
         for (const d of valid) {
             expect(parseDifficulty(d)).toBe(d)
         }
+    })
+
+    it('maps a stored legacy expert preference to advanced', () => {
+        expect(parseDifficulty('expert')).toBe('advanced')
     })
 
     it('returns simple for null', () => {
@@ -48,11 +55,43 @@ describe('getNextDifficulty', () => {
     it('returns the next difficulty in sequence', () => {
         expect(getNextDifficulty('simple')).toBe('easy')
         expect(getNextDifficulty('easy')).toBe('intermediate')
-        expect(getNextDifficulty('intermediate')).toBe('expert')
+        expect(getNextDifficulty('intermediate')).toBe('advanced')
     })
 
-    it('wraps from expert back to simple', () => {
-        expect(getNextDifficulty('expert')).toBe('simple')
+    it('wraps from advanced back to simple', () => {
+        expect(getNextDifficulty('advanced')).toBe('simple')
+    })
+
+    it('follows the tabs of a legacy post', () => {
+        const legacy = difficultiesForPuzzles({ simple: 'a', easy: 'b', intermediate: 'c', expert: 'd' })
+        expect(getNextDifficulty('intermediate', legacy)).toBe('expert')
+        expect(getNextDifficulty('expert', legacy)).toBe('simple')
+    })
+})
+
+describe('difficulty labels', () => {
+    it('shows intermediate as Hard and keeps unknown keys', () => {
+        expect(difficultyLabel('intermediate')).toBe('Hard')
+        expect(difficultyLabel('advanced')).toBe('Advanced')
+        expect(difficultyLabel('expert')).toBe('Expert')
+        expect(difficultyLabel('constructor')).toBe('constructor')
+    })
+})
+
+describe('legacy posts', () => {
+    it('offers Expert instead of Advanced when a post only has an expert puzzle', () => {
+        expect(difficultiesForPuzzles({ simple: 'a', easy: 'b', intermediate: 'c', expert: 'd' }))
+            .toEqual(['simple', 'easy', 'intermediate', 'expert'])
+        expect(difficultiesForPuzzles({ simple: 'a', easy: 'b', intermediate: 'c', advanced: 'd' }))
+            .toEqual(VALID_DIFFICULTIES)
+        expect(difficultiesForPuzzles(null)).toEqual(VALID_DIFFICULTIES)
+    })
+
+    it('keeps the Advanced/Expert slot when resolving a saved preference', () => {
+        const legacy = difficultiesForPuzzles({ simple: 'a', easy: 'b', intermediate: 'c', expert: 'd' })
+        expect(resolveDifficulty('advanced', legacy)).toBe('expert')
+        expect(resolveDifficulty('expert', VALID_DIFFICULTIES)).toBe('advanced')
+        expect(resolveDifficulty('easy', legacy)).toBe('easy')
     })
 })
 

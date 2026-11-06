@@ -1,6 +1,8 @@
 import { SvelteSet } from 'svelte/reactivity'
 
-export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'expert'
+/** 'intermediate' is shown as "Hard". 'expert' only appears on older posts and on
+ *  community puzzles that need more than the Advanced techniques. */
+export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'advanced' | 'expert'
 
 export type GameScreen = 'playing' | 'completed' | 'submit'
 
@@ -21,10 +23,18 @@ export type TechniqueType =
     | 'hidden-pair'
     | 'pointing-pair'
     | 'box-line-reduction'
+    | 'x-wing'
+    | 'skyscraper'
+    | 'two-string-kite'
+    | 'xy-wing'
+    | 'w-wing'
+    | 'incorrect-entry'
+    | 'incorrect-note'
+    | 'reveal'
 
-export type TechniqueDifficulty = 'easy' | 'medium' | 'hard'
+export type TechniqueDifficulty = 'easy' | 'medium' | 'hard' | 'assist'
 
-export type TechniqueAction = 'placement' | 'elimination'
+export type TechniqueAction = 'placement' | 'elimination' | 'clear' | 'restore-notes'
 
 export type TechniqueHint = {
     technique: TechniqueType

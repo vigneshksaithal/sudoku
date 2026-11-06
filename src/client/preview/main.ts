@@ -1,5 +1,5 @@
 import { requestExpandedMode } from '@devvit/web/client'
-import { DIFFICULTY_STORAGE_KEY, VALID_DIFFICULTIES } from '../lib/constants'
+import { DIFFICULTY_STORAGE_KEY, VALID_DIFFICULTIES, parseDifficulty } from '../lib/constants'
 import type { Difficulty } from '../lib/types'
 import '../app.css'
 
@@ -29,8 +29,8 @@ const BOX_SIZE = 2
 const getDefaultDifficulty = (): Difficulty => {
     try {
         const stored = localStorage.getItem(DIFFICULTY_STORAGE_KEY)
-        if (stored !== null && (VALID_DIFFICULTIES as readonly string[]).includes(stored)) {
-            return stored as Difficulty
+        if (stored === 'expert' || (stored !== null && (VALID_DIFFICULTIES as readonly string[]).includes(stored))) {
+            return parseDifficulty(stored)
         }
     } catch {
         // localStorage unavailable

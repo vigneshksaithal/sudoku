@@ -1,10 +1,10 @@
 import type { RedisClient } from '@devvit/redis'
-import { DIFFICULTIES } from './sudoku'
+import { ALL_DIFFICULTIES } from './sudoku'
 import { isInvalidHistoricalRecord } from './leaderboard-cleanup'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ValidDifficulty = (typeof DIFFICULTIES)[number]
+export type ValidDifficulty = (typeof ALL_DIFFICULTIES)[number]
 
 export type LeaderboardEntry = {
     rank: number | null
@@ -31,7 +31,7 @@ export type SolveResponse = {
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 export const isValidDifficulty = (d: unknown): d is ValidDifficulty =>
-    typeof d === 'string' && (DIFFICULTIES as readonly string[]).includes(d)
+    typeof d === 'string' && (ALL_DIFFICULTIES as readonly string[]).includes(d)
 
 const isNonNegativeInteger = (value: unknown): value is number =>
     typeof value === 'number' &&

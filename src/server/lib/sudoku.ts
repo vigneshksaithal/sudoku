@@ -1,3 +1,6 @@
+import { findAdvancedStep } from '../../shared/advanced-techniques'
+import type { AdvancedTechnique } from '../../shared/advanced-techniques'
+
 // ─── Type Definitions ─────────────────────────────────────────────────────────
 
 export type LogType =
@@ -8,6 +11,7 @@ export type LogType =
     | 'pointingPairTripleRow' | 'pointingPairTripleColumn'
     | 'rowBox' | 'columnBox'
     | 'hiddenPairRow' | 'hiddenPairColumn' | 'hiddenPairSection'
+    | 'xWing' | 'skyscraper' | 'twoStringKite' | 'xyWing' | 'wWing'
     | 'guess' | 'rollback'
 
 export type LogItem = {
@@ -19,9 +23,28 @@ export type LogItem = {
 
 export type Symmetry = 'none' | 'rotate180' | 'rotate90' | 'mirror' | 'flip'
 
-export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'expert'
+/** 'intermediate' is shown to players as "Hard". 'expert' is no longer generated for
+ *  daily posts: it remains for older posts and community puzzles that need more than
+ *  the Advanced techniques (the solver has to guess). */
+export type Difficulty = 'simple' | 'easy' | 'intermediate' | 'advanced' | 'expert'
 
-export const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
+/** Difficulties generated for each daily post, easiest first. */
+export const DIFFICULTIES = ['simple', 'easy', 'intermediate', 'advanced'] as const
+
+/** Every difficulty that may exist in stored posts, leaderboards and submissions. */
+export const ALL_DIFFICULTIES = ['simple', 'easy', 'intermediate', 'advanced', 'expert'] as const
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+    simple: 'Simple',
+    easy: 'Easy',
+    intermediate: 'Hard',
+    advanced: 'Advanced',
+    expert: 'Expert',
+}
+
+/** Display name for a stored difficulty key; unknown keys are returned unchanged. */
+export const difficultyLabel = (difficulty: string): string =>
+    Object.hasOwn(DIFFICULTY_LABELS, difficulty) ? DIFFICULTY_LABELS[difficulty as Difficulty] : difficulty
 
 export type SolveStats = Record<LogType, number>
 
@@ -572,6 +595,43 @@ export const hiddenPairInSection = (state: SolverState, round: number): boolean 
     return false
 }
 
+// ─── Advanced Techniques (shared with the client hint engine) ───────────────
+
+const ADVANCED_LOG_TYPES: Record<AdvancedTechnique, LogType> = {
+    'x-wing': 'xWing',
+    skyscraper: 'skyscraper',
+    'two-string-kite': 'twoStringKite',
+    'xy-wing': 'xyWing',
+    'w-wing': 'wWing',
+}
+
+/** Candidate bitmasks (bit d-1 = digit d) for the shared technique finders. Solved cells are 0. */
+export const toCandidateMasks = (state: SolverState): number[] =>
+    Array.from({ length: 81 }, (_, cell) => {
+        if (state.solution[cell] !== 0) return 0
+        let mask = 0
+        for (let vi = 0; vi < 9; vi++) {
+            if (state.possibilities[possibilityIndex(vi, cell)] === 0) mask |= 1 << vi
+        }
+        return mask
+    })
+
+/** One Advanced step: X-Wing, Skyscraper, 2-String Kite, XY-Wing or W-Wing.
+ *  Returns true if any elimination was made. */
+export const advancedTechniqueMove = (state: SolverState, round: number): boolean => {
+    const step = findAdvancedStep(toCandidateMasks(state))
+    if (step === null) return false
+    const vi = step.digit - 1
+    for (const cell of step.eliminations) {
+        const idx = possibilityIndex(vi, cell)
+        if (state.possibilities[idx] === 0) state.possibilities[idx] = round
+    }
+    if (state.recordHistory) {
+        state.solveLog.push({ round, type: ADVANCED_LOG_TYPES[step.technique], value: step.digit, position: -1 })
+    }
+    return true
+}
+
 // ─── Solve Loop ───────────────────────────────────────────────────────────────
 
 /** Apply one technique step in fixed order. Returns true if progress was made. */
@@ -587,7 +647,8 @@ export const singleSolveMove = (state: SolverState, round: number): boolean =>
     colBoxReduction(state, round) ||
     hiddenPairInRow(state, round) ||
     hiddenPairInColumn(state, round) ||
-    hiddenPairInSection(state, round)
+    hiddenPairInSection(state, round) ||
+    advancedTechniqueMove(state, round)
 
 /** Find the unsolved cell with the fewest remaining candidates. Returns -1 if none found. */
 const findBestGuessCell = (state: SolverState): number => {
@@ -628,6 +689,15 @@ const tryGuess = (state: SolverState, cell: number, vi: number, savedRound: numb
         state.solveLog.push({ round: guessRound, type: 'rollback', value: 0, position: -1 })
     }
     return false
+}
+
+/** Apply logical techniques only, until solved or stuck. Returns true if solved. */
+export const solveLogically = (state: SolverState): boolean => {
+    while (singleSolveMove(state, state.round)) {
+        if (isSolved(state.solution)) return true
+        if (isImpossible(state.solution, state.possibilities)) return false
+    }
+    return isSolved(state.solution)
 }
 
 /** Main solve loop. Applies logic, falls back to guess-and-backtrack. Returns true if solved. */
@@ -782,6 +852,8 @@ const INTERMEDIATE_TYPES = new Set<LogType>([
     'hiddenPairRow', 'hiddenPairColumn', 'hiddenPairSection',
 ])
 
+const ADVANCED_TYPES = new Set<LogType>(['xWing', 'skyscraper', 'twoStringKite', 'xyWing', 'wWing'])
+
 const EASY_TYPES = new Set<LogType>([
     'hiddenSingleRow', 'hiddenSingleColumn', 'hiddenSingleSection',
 ])
@@ -789,9 +861,17 @@ const EASY_TYPES = new Set<LogType>([
 /** Classify difficulty from a solve log based on the most advanced technique used. */
 export const getDifficulty = (log: LogItem[]): Difficulty => {
     if (log.some((e) => e.type === 'guess')) return 'expert'
+    if (log.some((e) => ADVANCED_TYPES.has(e.type))) return 'advanced'
     if (log.some((e) => INTERMEDIATE_TYPES.has(e.type))) return 'intermediate'
     if (log.some((e) => EASY_TYPES.has(e.type))) return 'easy'
     return 'simple'
+}
+
+/** Classify a puzzle without searching: the same result as solving fully and calling
+ *  `getDifficulty`, because `solve` only guesses once the logical techniques are stuck. */
+export const classifyPuzzle = (puzzle: number[]): Difficulty => {
+    const state = createSolverState(puzzle, true)
+    return solveLogically(state) ? getDifficulty(state.solveLog) : 'expert'
 }
 
 /** Compute solve statistics — count occurrences of each LogType in the log. */
@@ -803,6 +883,7 @@ export const getSolveStats = (log: LogItem[]): SolveStats => {
         pointingPairTripleRow: 0, pointingPairTripleColumn: 0,
         rowBox: 0, columnBox: 0,
         hiddenPairRow: 0, hiddenPairColumn: 0, hiddenPairSection: 0,
+        xWing: 0, skyscraper: 0, twoStringKite: 0, xyWing: 0, wWing: 0,
         guess: 0, rollback: 0,
     } satisfies SolveStats
     for (const entry of log) stats[entry.type]++
@@ -819,9 +900,7 @@ export const generatePuzzleWithDifficulty = (
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const solution = generateSolutionFlat()
         const puzzle = removeCluesToCreatePuzzle(solution, symmetry)
-        const state = createSolverState(puzzle, true)
-        solve(state)
-        if (getDifficulty(state.solveLog) === difficulty) return { puzzle, solution }
+        if (classifyPuzzle(puzzle) === difficulty) return { puzzle, solution }
     }
     return null
 }

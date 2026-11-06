@@ -64,7 +64,7 @@ testHappy('POST /api/score/comment formats comment text with difficulty and time
     }))
 
     const callArgs = submitComment.mock.calls[0]?.[0]
-    expect(callArgs?.text).toContain('easy')
+    expect(callArgs?.text).toContain('**Easy**')
     expect(callArgs?.text).toContain('2:34')
     expect(callArgs?.text).toContain('1')  // hints
     expect(callArgs?.text).toContain('2')  // mistakes

@@ -2,6 +2,7 @@ import * as fc from 'fast-check'
 import { describe, it } from 'vitest'
 
 import { formatScoreComment } from '../score-comment'
+import { difficultyLabel } from '../sudoku'
 import { validateSolveInput } from '../leaderboard'
 
 const VALID_DIFFICULTIES = ['simple', 'easy', 'intermediate', 'expert'] as const
@@ -65,7 +66,7 @@ describe('Property 1: Score comment format completeness', () => {
                 const result = formatScoreComment(data)
                 const formattedTime = expectedFormattedTime(data.completionTime)
 
-                const containsDifficulty = result.includes(data.difficulty)
+                const containsDifficulty = result.includes(difficultyLabel(data.difficulty))
                 const containsTime = result.includes(formattedTime)
                 const containsHints = result.includes(String(data.hintsUsed))
                 const containsMistakes = result.includes(String(data.mistakesCount))

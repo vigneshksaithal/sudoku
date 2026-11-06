@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SvelteSet } from 'svelte/reactivity'
-import { applyAutoCandidates, hasAutoCandidates, clearAutoCandidates, placeLockedDigit } from '../app-logic'
+import { applyAutoCandidates, hasAutoCandidates, clearAutoCandidates, placeLockedDigit, applyHintEliminations } from '../app-logic'
 import type { CellState, NotesBoard } from '../types'
 
 // Helper: create a 9×9 board of empty cells
@@ -312,5 +312,37 @@ describe('placeLockedDigit', () => {
         expect(placeLockedDigit(board, notesBoard, 0, -1, 5)).toBe(false)
         expect(placeLockedDigit(board, notesBoard, 9, 0, 5)).toBe(false)
         expect(placeLockedDigit(board, notesBoard, 0, 9, 5)).toBe(false)
+    })
+})
+
+describe('applyHintEliminations', () => {
+    const blank = (): CellState[][] =>
+        Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => ({ value: 0, isGiven: false, hasConflict: false })))
+    const notesFor = (): NotesBoard =>
+        Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new SvelteSet<number>()))
+
+    it('seeds an empty cell with its candidates before eliminating', () => {
+        const board = blank()
+        board[0]![1] = { value: 5, isGiven: true, hasConflict: false }
+        const notes = notesFor()
+        applyHintEliminations(board, notes, [{ row: 0, col: 0, digits: [3] }])
+        expect([...notes[0]![0]!].sort()).toEqual([1, 2, 4, 6, 7, 8, 9])
+    })
+
+    it('only removes the eliminated digits from existing notes', () => {
+        const board = blank()
+        const notes = notesFor()
+        notes[2]![2]!.add(1).add(3).add(7)
+        applyHintEliminations(board, notes, [{ row: 2, col: 2, digits: [3, 9] }])
+        expect([...notes[2]![2]!].sort()).toEqual([1, 7])
+    })
+
+    it('leaves filled cells and untouched cells alone', () => {
+        const board = blank()
+        board[4]![4] = { value: 6, isGiven: false, hasConflict: false }
+        const notes = notesFor()
+        applyHintEliminations(board, notes, [{ row: 4, col: 4, digits: [2] }])
+        expect(notes[4]![4]!.size).toBe(0)
+        expect(notes[0]![0]!.size).toBe(0)
     })
 })

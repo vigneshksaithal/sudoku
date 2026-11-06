@@ -29,6 +29,8 @@ export type ValidationResult =
 const BOARD_LENGTH = 81
 const MIN_GIVENS = 17
 const PUZZLE_PATTERN = /^[0-9]{81}$/
+export const NEEDS_GUESSING_ERROR =
+    'This puzzle needs guessing or techniques beyond Advanced (X-Wing, Skyscraper, 2-String Kite, XY-Wing, W-Wing), so it can\'t be posted here. Please submit a puzzle that can be solved without guessing.'
 
 // ─── Format Validation ────────────────────────────────────────────────────────
 
@@ -144,7 +146,9 @@ export const classifyAndSolve = (board: number[]): ClassificationResult => {
 
 // ─── Full Validation Pipeline ─────────────────────────────────────────────────
 
-/** Full validation pipeline: format → constraints → uniqueness → classify */
+/** Full validation pipeline: format → constraints → uniqueness → classify.
+ *  Puzzles that need guessing ('expert') are rejected: every posted puzzle must be
+ *  solvable with techniques the Hint button can explain. */
 export const validatePuzzle = (input: string): ValidationResult => {
     const formatResult = validatePuzzleFormat(input)
     if (!formatResult.valid) return { valid: false, error: formatResult.error }
@@ -156,6 +160,7 @@ export const validatePuzzle = (input: string): ValidationResult => {
     if (!uniquenessResult.valid) return { valid: false, error: uniquenessResult.error }
 
     const { difficulty, solution } = classifyAndSolve(formatResult.board)
+    if (difficulty === 'expert') return { valid: false, error: NEEDS_GUESSING_ERROR }
     const clueCount = formatResult.board.filter((d) => d !== 0).length
 
     return { valid: true, difficulty, solution, clueCount }
