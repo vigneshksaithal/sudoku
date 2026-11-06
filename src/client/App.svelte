@@ -29,6 +29,7 @@
 		applyAutoCandidates,
 		hasAutoCandidates,
 		clearAutoCandidates,
+		applyHintEliminations,
 		placeLockedDigit,
 		batchPlaceDigit,
 		isMistake,
@@ -707,12 +708,18 @@
 			};
 			clearCellNotes(notesBoard, row, col);
 			cleanupNotes(notesBoard, row, col, activeHint.digit);
-		} else {
-			for (const elim of activeHint.eliminations ?? []) {
-				for (const digit of elim.digits) {
-					notesBoard[elim.row]?.[elim.col]?.delete(digit);
-				}
+		} else if (activeHint.action === "clear") {
+			const [row, col] = activeHint.primaryCells[0]!;
+			const cell = board[row]?.[col];
+			if (cell && !cell.isGiven) {
+				board[row]![col] = { ...cell, value: 0 };
 			}
+		} else {
+			applyHintEliminations(
+				board,
+				notesBoard,
+				activeHint.eliminations ?? [],
+			);
 		}
 		board = updateConflicts(board);
 		activeHint = null;

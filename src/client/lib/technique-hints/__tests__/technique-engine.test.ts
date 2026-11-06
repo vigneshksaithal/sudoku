@@ -99,10 +99,38 @@ describe('findTechniqueHint — complete board', () => {
 // ---------------------------------------------------------------------------
 
 describe('findTechniqueHint — no techniques apply', () => {
-    it('returns null when all detectors return null', () => {
+    it('offers a reveal instead of returning nothing when all detectors return null', () => {
         resetMocks()
         const hint = findTechniqueHint(emptyBoard(), emptyCandidates(), solution)
-        expect(hint).toBeNull()
+        expect(hint).not.toBeNull()
+        expect(hint!.technique).toBe('reveal')
+        expect(hint!.action).toBe('placement')
+        expect(hint!.digit).toBe(1)
+    })
+})
+
+describe('findTechniqueHint — incorrect entries', () => {
+    it('flags an incorrect player entry before any technique', () => {
+        resetMocks()
+        mockNakedSingle.mockReturnValue(makeHint('naked-single'))
+        const board = emptyBoard()
+        board[4]![4] = { value: 7, isGiven: false, hasConflict: false }
+        const hint = findTechniqueHint(board, emptyCandidates(), solution)
+        expect(hint!.technique).toBe('incorrect-entry')
+        expect(hint!.action).toBe('clear')
+        expect(hint!.primaryCells).toEqual([[4, 4]])
+        expect(mockNakedSingle).not.toHaveBeenCalled()
+    })
+
+    it('flags an incorrect entry even when the board is full', () => {
+        resetMocks()
+        const board = Array.from({ length: 9 }, () =>
+            Array.from({ length: 9 }, () => filledCell(1))
+        )
+        board[8]![8] = { value: 2, isGiven: false, hasConflict: true }
+        const hint = findTechniqueHint(board, emptyCandidates(), solution)
+        expect(hint!.technique).toBe('incorrect-entry')
+        expect(hint!.primaryCells).toEqual([[8, 8]])
     })
 })
 

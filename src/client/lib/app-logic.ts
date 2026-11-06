@@ -177,3 +177,26 @@ export const placeLockedDigit = (
     cleanupNotes(notesBoard, row, col, digit)
     return true
 }
+
+/**
+ * Apply a hint's candidate eliminations to `notesBoard`.
+ * A cell with no notes first receives its constraint-based candidates, so the
+ * elimination is visible and persists for later hints even when the player has
+ * not been taking notes. Filled cells are left untouched. Mutates `notesBoard`.
+ */
+export const applyHintEliminations = (
+    board: CellState[][],
+    notesBoard: NotesBoard,
+    eliminations: ReadonlyArray<{ row: number; col: number; digits: readonly number[] }>,
+): void => {
+    const candidates = buildCandidateBoard(board)
+    for (const { row, col, digits } of eliminations) {
+        const cell = board[row]?.[col]
+        const cellNotes = notesBoard[row]?.[col]
+        if (!cell || cell.value !== 0 || !cellNotes) continue
+        if (cellNotes.size === 0) {
+            for (const digit of candidates[row]![col]!) cellNotes.add(digit)
+        }
+        for (const digit of digits) cellNotes.delete(digit)
+    }
+}

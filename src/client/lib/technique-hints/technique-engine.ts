@@ -5,6 +5,7 @@ import { detectNakedPair } from './naked-pair'
 import { detectHiddenPair } from './hidden-pair'
 import { detectPointingPair } from './pointing-pair'
 import { detectBoxLineReduction } from './box-line-reduction'
+import { buildRevealHint, detectIncorrectEntry } from './fallback-hint'
 
 const isBoardComplete = (board: CellState[][]): boolean =>
     board.every((row) => row.every((cell) => cell.value !== 0))
@@ -14,6 +15,8 @@ export const findTechniqueHint = (
     candidates: CandidateBoard,
     solution: number[]
 ): TechniqueHint | null => {
+    const incorrect = detectIncorrectEntry(board, solution)
+    if (incorrect !== null) return incorrect
     if (isBoardComplete(board)) return null
 
     return (
@@ -23,6 +26,6 @@ export const findTechniqueHint = (
         detectHiddenPair(board, candidates) ??
         detectPointingPair(board, candidates) ??
         detectBoxLineReduction(board, candidates) ??
-        null
+        buildRevealHint(board, candidates, solution)
     )
 }
