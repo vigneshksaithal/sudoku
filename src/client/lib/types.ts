@@ -21,10 +21,12 @@ export type TechniqueType =
     | 'hidden-pair'
     | 'pointing-pair'
     | 'box-line-reduction'
+    | 'incorrect-entry'
+    | 'reveal'
 
-export type TechniqueDifficulty = 'easy' | 'medium' | 'hard'
+export type TechniqueDifficulty = 'easy' | 'medium' | 'hard' | 'assist'
 
-export type TechniqueAction = 'placement' | 'elimination'
+export type TechniqueAction = 'placement' | 'elimination' | 'clear'
 
 export type TechniqueHint = {
     technique: TechniqueType
