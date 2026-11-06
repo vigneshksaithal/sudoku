@@ -5,7 +5,9 @@ import {
     validatePuzzleUniqueness,
     classifyAndSolve,
     validatePuzzle,
+    NEEDS_GUESSING_ERROR,
 } from '../puzzle-validator'
+import { ADVANCED_FIXTURES, EXPERT_FIXTURES } from '../../../shared/test-fixtures/generated-puzzles'
 import { getDifficulty, createSolverState, solve, stringToBoard } from '../sudoku'
 
 // ─── Known test puzzles ───────────────────────────────────────────────────────
@@ -208,7 +210,7 @@ describe('classifyAndSolve', () => {
         const result = classifyAndSolve(board)
         expect(result.solution).toHaveLength(81)
         expect(result.solution.every((d) => d >= 1 && d <= 9)).toBe(true)
-        expect(['simple', 'easy', 'intermediate', 'expert']).toContain(result.difficulty)
+        expect(['simple', 'easy', 'intermediate', 'advanced', 'expert']).toContain(result.difficulty)
     })
 
     it('difficulty matches getDifficulty output for the same puzzle', () => {
@@ -244,11 +246,20 @@ describe('classifyAndSolve', () => {
 // ─── validatePuzzle (full pipeline) ──────────────────────────────────────────
 
 describe('validatePuzzle', () => {
+    it.each(EXPERT_FIXTURES.map((f) => f.puzzle))('rejects a puzzle that needs guessing: %s', (puzzle) => {
+        expect(validatePuzzle(puzzle)).toEqual({ valid: false, error: NEEDS_GUESSING_ERROR })
+    })
+
+    it.each(ADVANCED_FIXTURES.map((f) => f.puzzle))('accepts an Advanced puzzle: %s', (puzzle) => {
+        const result = validatePuzzle(puzzle)
+        expect(result.valid && result.difficulty).toBe('advanced')
+    })
+
     it('returns valid result with difficulty, solution, and clueCount for a valid puzzle', () => {
         const result = validatePuzzle(VALID_PUZZLE)
         expect(result.valid).toBe(true)
         if (result.valid) {
-            expect(['simple', 'easy', 'intermediate', 'expert']).toContain(result.difficulty)
+            expect(['simple', 'easy', 'intermediate', 'advanced']).toContain(result.difficulty)
             expect(result.solution).toHaveLength(81)
             expect(result.clueCount).toBeGreaterThanOrEqual(17)
         }
