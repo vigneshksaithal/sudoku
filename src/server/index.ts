@@ -368,7 +368,7 @@ app.post('/api/solve', async (c) => {
     return c.json({ status: 'error', message: 'Puzzle not found' }, HTTP_STATUS_BAD_REQUEST)
   }
   const timing = await redis.hGetAll(timingKey(postId, difficulty, userId))
-  const assessment = assessTiming(timing, puzzle, parsed.completionTime, Date.now())
+  const assessment = assessTiming(timing, puzzle, difficulty, parsed.completionTime, Date.now())
   const unranked = parsed.unranked || assessment.unranked
   const completionTime = unranked ? parsed.completionTime : assessment.completionTime
   if (!Number.isSafeInteger(completionTime + hintsUsed * 30)) {

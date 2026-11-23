@@ -2,7 +2,18 @@ import type { RedisClient } from '@devvit/redis'
 import type { ValidDifficulty } from './leaderboard'
 
 const TIMING_TTL_SECONDS = 7 * 24 * 60 * 60
-const SECONDS_PER_EMPTY_CELL = 2
+/**
+ * Minimum plausible seconds per empty cell for a ranked solve, by difficulty.
+ * Singles-only tiers can legitimately be filled much faster than tiers that
+ * need subsets, wings or chains, so one flat rate either caps strong solvers on
+ * easy puzzles or lets automated solves through on hard ones.
+ */
+export const SECONDS_PER_EMPTY_CELL: Record<ValidDifficulty, number> = {
+    simple: 1,
+    easy: 1,
+    intermediate: 1.5,
+    expert: 2,
+}
 const MINIMUM_RANKED_SECONDS = 10
 const TIMER_GRACE_SECONDS = 5
 
@@ -40,7 +51,7 @@ const parseTimestamp = (value: string | undefined): number | null => {
 }
 
 export const assessTiming = (
-    timing: Record<string, string>, puzzle: string, clientSeconds: number, now: number
+    timing: Record<string, string>, puzzle: string, difficulty: ValidDifficulty, clientSeconds: number, now: number
 ): { completionTime: number; unranked: boolean } => {
     const startedAt = parseTimestamp(timing['startedAt'])
     const pausedMs = parseTimestamp(timing['pausedMs'])
@@ -48,8 +59,13 @@ export const assessTiming = (
         return { completionTime: clientSeconds, unranked: true }
     }
     const completionTime = Math.floor((now - startedAt - pausedMs) / 1000)
-    const minimum = Math.max(MINIMUM_RANKED_SECONDS, [...puzzle].filter((cell) => cell === '0').length * SECONDS_PER_EMPTY_CELL)
+    const minimum = minimumRankedSeconds(puzzle, difficulty)
     const grace = TIMER_GRACE_SECONDS + Math.ceil(completionTime * 0.05)
     const unranked = completionTime < minimum || clientSeconds < completionTime - grace
     return { completionTime, unranked }
+}
+
+export const minimumRankedSeconds = (puzzle: string, difficulty: ValidDifficulty): number => {
+    const emptyCells = [...puzzle].filter((cell) => cell === '0').length
+    return Math.max(MINIMUM_RANKED_SECONDS, Math.ceil(emptyCells * SECONDS_PER_EMPTY_CELL[difficulty]))
 }
